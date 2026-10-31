@@ -86,3 +86,33 @@
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
+
+#ptap-panel .ptap-bars-label {
+  color: #9ca3af;
+  font-size: 10px;
+  margin-top: 8px;
+}
+#ptap-panel .ptap-bars {
+  height: 34px;
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  align-items: end;
+  gap: 4px;
+  margin-top: 5px;
+}
+#ptap-panel .ptap-bars span {
+  height: 100%;
+  min-height: 3px;
+  display: flex;
+  align-items: end;
+  overflow: hidden;
+  background: rgba(255,255,255,.07);
+  border-radius: 3px 3px 1px 1px;
+}
+#ptap-panel .ptap-bars i {
+  display: block;
+  width: 100%;
+  min-height: 1px;
+  background: #9ae6b4;
+  border-radius: 3px 3px 1px 1px;
+}
