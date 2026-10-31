@@ -4,33 +4,33 @@
   "version": "0.1.0",
   "description": "Experimental tools for inspecting PolyTrack and recording/replaying driving inputs.",
   "minimum_chrome_version": "116",
-  "permissions": ["storage"],
+  "permissions": [
+    "storage"
+  ],
   "host_permissions": [
+    "https://kodub.com/*",
+    "https://www.kodub.com/*",
     "https://*.itch.zone/*",
     "https://*.itch.io/*",
-    "https://*.kodub.com/*"
+    "https://*.crazygames.com/*"
   ],
   "content_scripts": [
     {
       "matches": [
+        "https://kodub.com/*",
+        "https://www.kodub.com/*",
         "https://*.itch.zone/*",
         "https://*.itch.io/*",
-        "https://*.kodub.com/*"
+        "https://*.crazygames.com/*"
       ],
-      "js": ["src/content.js"],
-      "css": ["src/panel.css"],
+      "js": [
+        "src/content.js"
+      ],
+      "css": [
+        "src/panel.css"
+      ],
       "run_at": "document_idle",
       "all_frames": true
-    }
-  ],
-  "web_accessible_resources": [
-    {
-      "resources": ["src/page-bridge.js"],
-      "matches": [
-        "https://*.itch.zone/*",
-        "https://*.itch.io/*",
-        "https://*.kodub.com/*"
-      ]
     }
   ],
   "action": {
