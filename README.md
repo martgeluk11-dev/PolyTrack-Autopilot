@@ -8,12 +8,14 @@ An experimental Manifest V3 Chrome extension for PolyTrack.
 
 The first version provides:
 - a small in-game control panel;
+- a local input-analysis report after recording (throttle, brake, steering, input changes, and brake/steering overlap);
 - detection of likely game canvases and embedded game frames;
 - a diagnostic report that can be copied for debugging;
 - recording and replaying timestamped keyboard inputs, so a known lap can be reproduced;
+- an eight-part timeline breakdown of the recorded inputs;
 - safe start/stop handling that releases every simulated key when playback ends or the tab loses focus.
 
-It does **not** currently claim to decode every PolyTrack track, reproduce the game's physics, or calculate a globally optimal racing line. Those require verified access to the current game's track format and physics/runtime state. The extension reports missing capabilities rather than pretending they work.
+It does **not** currently decode PolyTrack track geometry, read vehicle telemetry, reproduce the game's physics, or calculate a globally optimal racing line. Input percentages describe keyboard activity, not actual vehicle movement or driving quality. Those require verified access to the current game's track format and physics/runtime state. The extension reports missing capabilities rather than pretending they work.
 
 ## Install (developer mode)
 
