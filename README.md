@@ -4,13 +4,16 @@ An experimental Manifest V3 Chrome extension for PolyTrack.
 
 ## Current status
 
-**Early development — experimental steering controller, not a finished autonomous racer.**
+**Early development — experimental live-telemetry autopilot for local practice.**
 
 The first version provides:
 - a small in-game control panel;
 - a browser-side decoder for PolyTrack save/export trackcodes (including `PolyTrack2` exports);
+- a main-world bridge that observes the PolyTrack simulation worker's 227-byte car-state buffers;
+- decoding of live car ID, frame count, speed, checkpoint index, position and orientation;
+- checkpoint target lookup from the decoded track using the documented 5-metre block scale;
 - an experimental closed-loop checkpoint steering controller with speed-aware throttle/brake decisions;
-- a fail-safe telemetry message interface that releases controls if state data is invalid;
+- fail-safe key release on invalid telemetry, manual input, tab blur, or Stop;
 - an experimental closed-loop checkpoint steering controller with speed-aware throttle/brake decisions;
 - a fail-safe telemetry message interface that releases controls if state data is invalid;
 - a track inspector showing environment, block counts by block ID, checkpoint count, and coordinate bounds;
@@ -22,7 +25,9 @@ The first version provides:
 - an eight-part timeline breakdown of the recorded inputs;
 - safe start/stop handling that releases every simulated key when playback ends or the tab loses focus.
 
-It does **not** yet map block IDs to exact 3D collision/road meshes, obtain live vehicle telemetry from the game, reproduce the game's physics, or calculate a globally optimal racing line. The controller is implemented, but it remains armed and waiting until a verified game adapter sends `PTAP_AUTOPILOT_TELEMETRY` messages containing car position, quaternion, speed, and next-checkpoint position. The current game page does not yet provide that adapter, so the Start button alone will not drive the car. The analyzer still reports decoded block records, not verified drivable surfaces.
+The telemetry bridge targets the current PolyTrack simulation-worker protocol: it listens for `UpdateResult` messages and reads the 227-byte car-state buffer. The checkpoint position is resolved from the decoded track's checkpoint block origin (world coordinates = block coordinates × 5 metres); after the last checkpoint, the nearest finish-line block is used. This follows the published PolyTrack v6 simulation implementation, but the extension still needs a real in-browser validation run on the user's exact game build.
+
+It does **not** yet map every block ID to its full collision mesh, build a continuous drivable-surface model, or calculate a globally optimal racing line. The controller is an initial checkpoint-following baseline, not a trained fastest-line solver. If the worker protocol or track format differs, the controller should remain stopped rather than guessing.
 
 ## Install (developer mode)
 
@@ -42,7 +47,7 @@ It does **not** yet map block IDs to exact 3D collision/road meshes, obtain live
 - **Stop bot**: immediately releases all held keys.
 - **Diagnostics**: copies frame/canvas information and the current page URL (without cookies or account data).
 
-Replay is timing-based. It is useful for repeatability, but it is not yet adaptive and will drift if the game runs at a different speed or the car collides differently.
+Replay is timing-based. It is useful for repeatability, but it is not adaptive and will drift if the game runs at a different speed or the car collides differently.
 
 See [runtime research and integration notes](docs/RESEARCH.md) for the verified game architecture and the next telemetry milestone.
 
