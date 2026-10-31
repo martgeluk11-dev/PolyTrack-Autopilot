@@ -1,0 +1,12 @@
+{
+  "name": "polytrack-autopilot",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Local practice recorder and input analysis tools for PolyTrack",
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
