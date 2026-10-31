@@ -61,7 +61,7 @@
     if (!f || !t) return { valid: false, reason: "No usable horizontal direction." };
 
     const dot = clamp(f.x * t.x + f.z * t.z, -1, 1);
-    const crossY = f.z * t.x - f.x * t.z;
+    const crossY = f.x * t.z - f.z * t.x;
     const angle = Math.atan2(crossY, dot);
     const speed = Number(state.speed_kmh ?? state.speedKmh ?? 0);
     if (!Number.isFinite(speed) || speed < 0) return { valid: false, reason: "Invalid vehicle speed." };
