@@ -217,7 +217,7 @@
       };
     });
     return {
-      extension: "PolyTrack Autopilot 0.2.0",
+      extension: "PolyTrack Autopilot 0.2.1",
       pageOrigin: location.origin,
       pageTitle: document.title,
       frame: window === window.top ? "top" : "embedded",
