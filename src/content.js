@@ -279,9 +279,11 @@
       };
     });
     return {
-      extension: "PolyTrack Autopilot 0.4.0",
+      extension: "PolyTrack Autopilot 0.5.0",
       autopilotController: Boolean(window.PTAPAutopilot),
-      telemetryBridge: "Waiting for a verified game-state adapter",
+      pageBridgeReady: Boolean(window.__PTAP_PAGE_BRIDGE_READY__),
+      latestTelemetry: window.__PTAP_LAST_GAME_STATE__ || null,
+      telemetryBridge: "Reads 227-byte PolyTrack simulation worker state buffers",
       pageOrigin: location.origin,
       pageTitle: document.title,
       frame: window === window.top ? "top" : "embedded",
@@ -339,6 +341,16 @@
         return;
       }
       if (!window.PTAPAutopilot) { setStatus("Autopilot module unavailable", "bad"); return; }
+      if (!window.__PTAP_LAST_DECODED_TRACK__?.track?.parts?.length) {
+        setStatus("Analyze your PolyTrack trackcode first", "bad");
+        return;
+      }
+      if (!window.__PTAP_LAST_GAME_STATE__) {
+        setStatus("No live game telemetry yet · start a practice run", "bad");
+        return;
+      }
+      stopReplay();
+      if (state.recording) finishRecording();
       window.PTAPAutopilot.start();
       panel.querySelector("#ptap-autopilot").textContent = "Stop autopilot";
       setStatus("Controller armed · waiting for live car telemetry", "live");
@@ -367,10 +379,85 @@
     }).catch(() => {});
   }
 
+  function resolveCheckpointTarget(track, state) {
+    const parts = track?.track?.parts;
+    if (!Array.isArray(parts) || !parts.length) return null;
+    const checkpointIndex = Number(state.nextCheckpointIndex);
+    if (!Number.isInteger(checkpointIndex) || checkpointIndex < 0) return null;
+
+    // PolySim's prepared-track implementation uses block origin * 5 metres.
+    // The track decoder has already added the track's minimum XYZ offsets.
+    const checkpoint = parts.find(part => part.checkpointOrder === checkpointIndex);
+    if (checkpoint) return [checkpoint.x * 5, checkpoint.y * 5, checkpoint.z * 5];
+
+    const checkpointOrders = parts.map(part => part.checkpointOrder).filter(Number.isInteger);
+    const maxCheckpoint = checkpointOrders.length ? Math.max(...checkpointOrders) : 0;
+    if (checkpointOrders.length && checkpointIndex <= maxCheckpoint) return null;
+
+    // After the final checkpoint, target the nearest finish-line block.
+    const finishIds = new Set([74, 6, 78, 76]);
+    const finishParts = parts.filter(part => finishIds.has(part.id));
+    if (!finishParts.length) return null;
+    const p = state.position;
+    let nearest = null;
+    let nearestDistance = Infinity;
+    for (const part of finishParts) {
+      const dx = part.x * 5 - p[0];
+      const dy = part.y * 5 - p[1];
+      const dz = part.z * 5 - p[2];
+      const distance = dx * dx + dy * dy + dz * dz;
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearest = part;
+      }
+    }
+    return nearest ? [nearest.x * 5, nearest.y * 5, nearest.z * 5] : null;
+  }
+
   window.addEventListener("message", event => {
-    if (event.source !== window || event.data?.type !== "PTAP_AUTOPILOT_TELEMETRY") return;
-    if (!window.PTAPAutopilot?.status().enabled) return;
-    const result = window.PTAPAutopilot.update(event.data.state);
+    if (event.source !== window || event.origin !== location.origin) return;
+    if (event.data?.source !== "polytrack-autopilot") return;
+    if (event.data.type === "PTAP_PAGE_BRIDGE_READY") {
+      window.__PTAP_PAGE_BRIDGE_READY__ = true;
+      return;
+    }
+    if (event.data.type !== "PTAP_PAGE_BRIDGE_TELEMETRY") return;
+
+    const raw = event.data.state;
+    if (!raw) return;
+    window.__PTAP_PAGE_BRIDGE_READY__ = true;
+    const previous = window.__PTAP_LAST_GAME_STATE__;
+    const state = {
+      carId: raw.carId,
+      frames: raw.frames,
+      speed_kmh: raw.speedKmh,
+      next_checkpoint_index: raw.nextCheckpointIndex,
+      position: raw.position,
+      quaternion: { x: raw.quaternion[0], y: raw.quaternion[1], z: raw.quaternion[2], w: raw.quaternion[3] },
+      hasStarted: raw.hasStarted
+    };
+    if (previous && previous.carId === state.carId && state.frames > previous.frames) {
+      state.deltaSeconds = Math.min(0.1, (state.frames - previous.frames) / 1000);
+    }
+    window.__PTAP_LAST_GAME_STATE__ = state;
+
+    if (!window.PTAPAutopilot?.status().enabled) {
+      const speed = Math.round(state.speed_kmh);
+      setStatus("Live telemetry · " + speed + " km/h · checkpoint " + raw.nextCheckpointIndex, "good");
+      return;
+    }
+
+    const target = resolveCheckpointTarget(window.__PTAP_LAST_DECODED_TRACK__, raw);
+    if (!target) {
+      window.PTAPAutopilot.stop();
+      const button = document.querySelector("#ptap-autopilot");
+      if (button) button.textContent = "Start autopilot";
+      setStatus("Stopped · checkpoint target could not be matched to this track", "bad");
+      return;
+    }
+
+    state.next_checkpoint_position = target;
+    const result = window.PTAPAutopilot.update(state);
     if (result?.valid) {
       const direction = Math.round(result.angle * 180 / Math.PI);
       setStatus("Autopilot · " + result.speedKmh.toFixed(0) + " km/h · target " + result.targetSpeedKmh.toFixed(0) + " · " + direction + "°", "live");
@@ -378,8 +465,14 @@
   });
 
   window.addEventListener("keydown", event => {
-    if (!state.recording || event.repeat || !KEYS.has(event.key)) return;
     if (event.target?.closest?.("#ptap-panel")) return;
+    if (event.isTrusted && window.PTAPAutopilot?.status().enabled) {
+      window.PTAPAutopilot.stop();
+      const button = document.querySelector("#ptap-autopilot");
+      if (button) button.textContent = "Start autopilot";
+      setStatus("Autopilot stopped · manual input detected", "good");
+    }
+    if (!state.recording || event.repeat || !KEYS.has(event.key)) return;
     if (state.recordedHeld.has(event.key)) return;
     state.recordedHeld.add(event.key);
     state.events.push({ t: elapsed(), type: "keydown", key: event.key });
@@ -401,11 +494,21 @@
 
   window.addEventListener("blur", () => {
     if (state.replaying) stopReplay();
+    if (window.PTAPAutopilot?.status().enabled) {
+      window.PTAPAutopilot.stop();
+      const button = document.querySelector("#ptap-autopilot");
+      if (button) button.textContent = "Start autopilot";
+    }
     // Do not stop recording when the user clicks the extension panel.
     releaseRecordedKeys();
   });
   document.addEventListener("visibilitychange", () => {
     if (document.hidden && state.replaying) stopReplay();
+    if (document.hidden && window.PTAPAutopilot?.status().enabled) {
+      window.PTAPAutopilot.stop();
+      const button = document.querySelector("#ptap-autopilot");
+      if (button) button.textContent = "Start autopilot";
+    }
     if (document.hidden) releaseRecordedKeys();
   });
 
