@@ -275,7 +275,9 @@
       };
     });
     return {
-      extension: "PolyTrack Autopilot 0.2.1",
+      extension: "PolyTrack Autopilot 0.4.0",
+      autopilotController: Boolean(window.PTAPAutopilot),
+      telemetryBridge: "Waiting for a verified game-state adapter",
       pageOrigin: location.origin,
       pageTitle: document.title,
       frame: window === window.top ? "top" : "embedded",
@@ -302,6 +304,7 @@
         <div class="ptap-actions">
           <button id="ptap-record" type="button">Record lap</button>
           <button id="ptap-replay" type="button">Replay lap</button>
+          <button id="ptap-autopilot" class="ptap-secondary" type="button">Start autopilot</button>
           <button id="ptap-stop" type="button">Stop</button>
         </div>
         <div class="ptap-analysis-wrap">
@@ -315,7 +318,7 @@
           <div id="ptap-analysis">Record a practice lap to see its input breakdown.</div>
         </div>
         <button id="ptap-diagnostics" class="ptap-secondary" type="button">Copy diagnostics</button>
-        <p class="ptap-note">Replay repeats key timing. It does not calculate a racing line or adapt to collisions.</p>
+        <p class="ptap-note">Autopilot controller is experimental and requires live car telemetry. Timing replay is not adaptive.</p>
       </div>`;
     document.documentElement.appendChild(panel);
 
@@ -323,6 +326,19 @@
       state.recording ? finishRecording() : startRecording();
     });
     panel.querySelector("#ptap-replay").addEventListener("click", startReplay);
+    panel.querySelector("#ptap-autopilot").addEventListener("click", () => {
+      const status = window.PTAPAutopilot?.status();
+      if (status?.enabled) {
+        window.PTAPAutopilot.stop();
+        setStatus("Autopilot stopped · controls released", "good");
+        panel.querySelector("#ptap-autopilot").textContent = "Start autopilot";
+        return;
+      }
+      if (!window.PTAPAutopilot) { setStatus("Autopilot module unavailable", "bad"); return; }
+      window.PTAPAutopilot.start();
+      panel.querySelector("#ptap-autopilot").textContent = "Stop autopilot";
+      setStatus("Controller armed · waiting for live car telemetry", "live");
+    });
     panel.querySelector("#ptap-decode-track").addEventListener("click", analyzeTrackCode);
     panel.querySelector("#ptap-stop").addEventListener("click", () => {
       stopReplay();
@@ -343,6 +359,16 @@
       if (run?.events) renderAnalysis(run.events, run.durationMs);
     }).catch(() => {});
   }
+
+  window.addEventListener("message", event => {
+    if (event.source !== window || event.data?.type !== "PTAP_AUTOPILOT_TELEMETRY") return;
+    if (!window.PTAPAutopilot?.status().enabled) return;
+    const result = window.PTAPAutopilot.update(event.data.state);
+    if (result?.valid) {
+      const direction = Math.round(result.angle * 180 / Math.PI);
+      setStatus("Autopilot · " + result.speedKmh.toFixed(0) + " km/h · target " + result.targetSpeedKmh.toFixed(0) + " · " + direction + "°", "live");
+    } else if (result?.reason) setStatus("Autopilot paused · " + result.reason, "bad");
+  });
 
   window.addEventListener("keydown", event => {
     if (!state.recording || event.repeat || !KEYS.has(event.key)) return;
