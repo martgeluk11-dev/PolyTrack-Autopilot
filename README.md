@@ -14,8 +14,6 @@ The first version provides:
 - checkpoint target lookup from the decoded track using the documented 5-metre block scale;
 - an experimental closed-loop checkpoint steering controller with speed-aware throttle/brake decisions;
 - fail-safe key release on invalid telemetry, manual input, tab blur, or Stop;
-- an experimental closed-loop checkpoint steering controller with speed-aware throttle/brake decisions;
-- a fail-safe telemetry message interface that releases controls if state data is invalid;
 - a track inspector showing environment, block counts by block ID, checkpoint count, and coordinate bounds;
 - local decoded JSON export for further geometry research;
 - a local input-analysis report after recording (throttle, brake, steering, input changes, and brake/steering overlap);
@@ -27,7 +25,7 @@ The first version provides:
 
 The telemetry bridge targets the current PolyTrack simulation-worker protocol: it listens for `UpdateResult` messages and reads the 227-byte car-state buffer. The checkpoint position is resolved from the decoded track's checkpoint block origin (world coordinates = block coordinates × 5 metres); after the last checkpoint, the nearest finish-line block is used. This follows the published PolyTrack v6 simulation implementation, but the extension still needs a real in-browser validation run on the user's exact game build.
 
-It does **not** yet map every block ID to its full collision mesh, build a continuous drivable-surface model, or calculate a globally optimal racing line. The controller is an initial checkpoint-following baseline, not a trained fastest-line solver. If the worker protocol or track format differs, the controller should remain stopped rather than guessing.
+It does **not** yet map every block ID to its full collision mesh, build a continuous drivable-surface model, or calculate a globally optimal racing line. The controller is an initial checkpoint-following baseline, not a trained fastest-line solver. The 0.6.3 worker protocol is present in the community's published worker bundle, but the extension has only been parser-tested with a synthetic state buffer so far; it has not yet been tested inside the actual game. If the worker protocol or track format differs, the controller should remain stopped rather than guessing.
 
 ## Install (developer mode)
 
