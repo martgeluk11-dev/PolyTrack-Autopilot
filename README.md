@@ -11,6 +11,8 @@ The first version provides:
 - a browser-side decoder for PolyTrack save/export trackcodes (including `PolyTrack2` exports);
 - an experimental closed-loop checkpoint steering controller with speed-aware throttle/brake decisions;
 - a fail-safe telemetry message interface that releases controls if state data is invalid;
+- an experimental closed-loop checkpoint steering controller with speed-aware throttle/brake decisions;
+- a fail-safe telemetry message interface that releases controls if state data is invalid;
 - a track inspector showing environment, block counts by block ID, checkpoint count, and coordinate bounds;
 - local decoded JSON export for further geometry research;
 - a local input-analysis report after recording (throttle, brake, steering, input changes, and brake/steering overlap);
@@ -20,7 +22,7 @@ The first version provides:
 - an eight-part timeline breakdown of the recorded inputs;
 - safe start/stop handling that releases every simulated key when playback ends or the tab loses focus.
 
-It does **not** yet map block IDs to exact 3D collision/road meshes, read vehicle telemetry, reproduce the game's physics, or calculate a globally optimal racing line. The current analyzer decodes the track's stored block records and reports their IDs and coordinates; it does not claim that these coordinates alone describe the drivable surface. Input percentages describe keyboard activity, not actual vehicle movement or driving quality. Those require verified access to the current game's track format and physics/runtime state. The extension reports missing capabilities rather than pretending they work.
+It does **not** yet map block IDs to exact 3D collision/road meshes, obtain live vehicle telemetry from the game, reproduce the game's physics, or calculate a globally optimal racing line. The controller is implemented, but it remains armed and waiting until a verified game adapter sends `PTAP_AUTOPILOT_TELEMETRY` messages containing car position, quaternion, speed, and next-checkpoint position. The current game page does not yet provide that adapter, so the Start button alone will not drive the car. The analyzer still reports decoded block records, not verified drivable surfaces.
 
 ## Install (developer mode)
 
