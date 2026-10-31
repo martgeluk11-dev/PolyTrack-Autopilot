@@ -24,6 +24,7 @@
         "https://*.crazygames.com/*"
       ],
       "js": [
+        "src/analysis.js",
         "src/content.js"
       ],
       "css": [
