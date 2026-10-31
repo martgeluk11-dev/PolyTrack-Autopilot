@@ -249,8 +249,9 @@
       window.__PTAP_LAST_DECODED_TRACK__ = decoded;
       setStatus("Track decoded · " + report.totalParts + " blocks found", "good");
     } catch (error) {
-      output.textContent = error?.message || "Trackcode could not be decoded.";
-      setStatus("Could not decode trackcode", "bad");
+      const message = error?.message || "Trackcode could not be decoded.";
+      output.textContent = message;
+      setStatus(message.length > 64 ? "Decode failed · see details below" : message, "bad");
     } finally {
       button.disabled = false;
       button.textContent = "Analyze trackcode";
