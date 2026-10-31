@@ -199,6 +199,64 @@
     });
   }
 
+  async function analyzeTrackCode() {
+    const input = document.querySelector("#ptap-track-code");
+    const output = document.querySelector("#ptap-track-result");
+    const button = document.querySelector("#ptap-decode-track");
+    if (!input || !output || !window.PTAPTrackDecoder) {
+      setStatus("Track decoder unavailable", "bad");
+      return;
+    }
+    button.disabled = true;
+    button.textContent = "Analyzing…";
+    output.textContent = "Trackcode decoderen…";
+    try {
+      const decoded = await window.PTAPTrackDecoder.decode(input.value);
+      const report = window.PTAPTrackDecoder.summarize(decoded);
+      const meta = decoded.metadata;
+      const bounds = report.bounds;
+      const blockRows = report.partCounts.slice(0, 14).map(item =>
+        "<div class=\\"ptap-metric\\"><span>Block ID " + item.id + "</span><b>" + item.count + "</b></div>"
+      ).join("");
+      output.innerHTML = `
+        <div class="ptap-track-success">TRACK DECODED · ${decoded.sourceFormat}</div>
+        ${meta?.name ? `<div class="ptap-metric"><span>Track</span><b>${escapeHtml(meta.name)}</b></div>` : ""}
+        ${meta?.author ? `<div class="ptap-metric"><span>Author</span><b>${escapeHtml(meta.author)}</b></div>` : ""}
+        <div class="ptap-metric"><span>Environment</span><b>${decoded.track.environmentName}</b></div>
+        <div class="ptap-metric"><span>Total blocks</span><b>${report.totalParts.toLocaleString()}</b></div>
+        <div class="ptap-metric"><span>Unique block IDs</span><b>${report.uniquePartTypes}</b></div>
+        <div class="ptap-metric"><span>Checkpoints</span><b>${report.checkpointCount}</b></div>
+        <div class="ptap-metric"><span>X range</span><b>${bounds.min.x} → ${bounds.max.x}</b></div>
+        <div class="ptap-metric"><span>Y range</span><b>${bounds.min.y} → ${bounds.max.y}</b></div>
+        <div class="ptap-metric"><span>Z range</span><b>${bounds.min.z} → ${bounds.max.z}</b></div>
+        <div class="ptap-track-list-title">BLOCK ID DISTRIBUTION</div>
+        ${blockRows}
+        ${report.partCounts.length > 14 ? `<div class="ptap-muted">+${report.partCounts.length - 14} more block IDs</div>` : ""}
+        <button id="ptap-copy-track-json" class="ptap-secondary" type="button">Copy decoded track JSON</button>
+        <div class="ptap-muted">Geometry data decoded. Block shapes and driveable surfaces still need mapping before a racing line can be calculated.</div>`;
+      output.querySelector("#ptap-copy-track-json").addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(JSON.stringify(decoded, null, 2));
+          setStatus("Decoded track JSON copied", "good");
+        } catch { setStatus("Clipboard unavailable", "bad"); }
+      });
+      window.__PTAP_LAST_DECODED_TRACK__ = decoded;
+      setStatus("Track decoded · " + report.totalParts + " blocks found", "good");
+    } catch (error) {
+      output.textContent = error?.message || "Trackcode could not be decoded.";
+      setStatus("Could not decode trackcode", "bad");
+    } finally {
+      button.disabled = false;
+      button.textContent = "Analyze trackcode";
+    }
+  }
+
+  function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, char => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+    })[char]);
+  }
+
   function updateButtons() {
     const record = document.querySelector("#ptap-record");
     const replay = document.querySelector("#ptap-replay");
@@ -247,6 +305,12 @@
           <button id="ptap-stop" type="button">Stop</button>
         </div>
         <div class="ptap-analysis-wrap">
+          <div class="ptap-section-title">TRACK ANALYZER · NO TEST LAP</div>
+          <textarea id="ptap-track-code" rows="3" spellcheck="false" placeholder="Paste een PolyTrack2 trackcode..."></textarea>
+          <button id="ptap-decode-track" class="ptap-secondary" type="button">Analyze trackcode</button>
+          <div id="ptap-track-result">Nog geen track geanalyseerd.</div>
+        </div>
+        <div class="ptap-analysis-wrap">
           <div class="ptap-section-title">LAST RUN · INPUT ANALYSIS</div>
           <div id="ptap-analysis">Record a practice lap to see its input breakdown.</div>
         </div>
@@ -259,6 +323,7 @@
       state.recording ? finishRecording() : startRecording();
     });
     panel.querySelector("#ptap-replay").addEventListener("click", startReplay);
+    panel.querySelector("#ptap-decode-track").addEventListener("click", analyzeTrackCode);
     panel.querySelector("#ptap-stop").addEventListener("click", () => {
       stopReplay();
       if (state.recording) finishRecording();
@@ -293,13 +358,21 @@
     state.events.push({ t: elapsed(), type: "keyup", key: event.key });
   }, true);
 
+  function releaseRecordedKeys() {
+    if (!state.recording || !state.recordedHeld.size) return;
+    const t = elapsed();
+    for (const key of [...state.recordedHeld]) state.events.push({ t, type: "keyup", key });
+    state.recordedHeld.clear();
+  }
+
   window.addEventListener("blur", () => {
     if (state.replaying) stopReplay();
-    if (state.recording) finishRecording();
+    // Do not stop recording when the user clicks the extension panel.
+    releaseRecordedKeys();
   });
   document.addEventListener("visibilitychange", () => {
     if (document.hidden && state.replaying) stopReplay();
-    if (document.hidden && state.recording) finishRecording();
+    if (document.hidden) releaseRecordedKeys();
   });
 
   mountPanel();
