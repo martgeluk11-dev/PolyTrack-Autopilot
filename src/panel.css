@@ -56,3 +56,33 @@
 #ptap-panel .ptap-note { color: #9ca3af; font-size: 11px; margin: 10px 0 0; }
 #ptap-panel.ptap-collapsed { width: 190px; }
 #ptap-panel.ptap-collapsed .ptap-body { display: none; }
+#ptap-panel .ptap-analysis-wrap {
+  margin-top: 12px;
+  padding: 10px;
+  border: 1px solid rgba(255,255,255,.09);
+  border-radius: 8px;
+  background: rgba(255,255,255,.035);
+}
+#ptap-panel .ptap-section-title {
+  color: #9ca3af;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .13em;
+  margin-bottom: 8px;
+}
+#ptap-panel #ptap-analysis {
+  display: grid;
+  gap: 6px;
+}
+#ptap-panel .ptap-metric {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: #a1a1aa;
+  font-size: 11px;
+}
+#ptap-panel .ptap-metric b {
+  color: #f4f4f5;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
