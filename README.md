@@ -43,6 +43,10 @@ Replay is timing-based. It is useful for repeatability, but it is not yet adapti
 6. Replace timing replay with closed-loop feedback control.
 7. Add automated tests and compare predicted lap times with actual runs.
 
+## Fair-play boundary
+
+Use the recorder/replay tools for private practice only. Do not submit automated or manipulated runs to leaderboards or use the extension in multiplayer competition. PolyTrack's terms prohibit unauthorized software used to gain an unfair leaderboard advantage and automated interaction with its server API.
+
 ## Safety and permissions
 
 The extension only runs on the listed game-host domains. It does not request access to browsing history, cookies, passwords, or unrelated sites. It does not send data to a server.
