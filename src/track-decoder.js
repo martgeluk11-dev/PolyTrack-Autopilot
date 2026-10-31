@@ -100,15 +100,15 @@
 
   async function decode(input) {
     let code = String(input || "")
-      .replace(/^\\uFEFF/, "")
-      .replace(/[\\u200B-\\u200D\\u2060]/g, "")
+      .replace(/^\uFEFF/, "")
+      .replace(/[\u200B-\u200D\u2060]/g, "")
       .trim()
-      .replace(/^\x60{3}[^\\n]*\\n?|\\n?\x60{3}$/g, "")
+      .replace(/^\x60{3}[^\n]*\n?|\n?\x60{3}$/g, "")
       .replace(/^[\\"'“”‘’]|[\\"'“”‘’]$/g, "")
-      .replace(/\\s+/g, "");
+      .replace(/\s+/g, "");
     if (/%[0-9A-Fa-f]{2}/.test(code)) {
       try { code = decodeURIComponent(code); } catch {}
-      code = code.replace(/\\s+/g, "");
+      code = code.replace(/\s+/g, "");
     }
     if (!code) throw new Error("Plak eerst een PolyTrack-trackcode.");
     if (code.startsWith("http://") || code.startsWith("https://")) {
