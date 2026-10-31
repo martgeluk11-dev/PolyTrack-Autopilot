@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "PolyTrack Autopilot",
   "version": "0.5.0",
-  "description": "Decode PolyTrack trackcodes and inspect map block data, with local practice recording tools.",
+  "description": "Decode PolyTrack tracks, read local simulation telemetry, and experiment with checkpoint-following autopilot in practice.",
   "minimum_chrome_version": "116",
   "host_permissions": [
     "https://kodub.com/*",
