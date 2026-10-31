@@ -153,6 +153,8 @@
   function startRecording() {
     stopReplay();
     if (window.PTAPAutopilot?.status().enabled) window.PTAPAutopilot.stop();
+    const autopilotButton = document.querySelector("#ptap-autopilot");
+    if (autopilotButton) autopilotButton.textContent = "Start autopilot";
     state.events = [];
     state.recordedHeld.clear();
     state.startedAt = performance.now();
