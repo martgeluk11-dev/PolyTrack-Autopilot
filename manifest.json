@@ -1,0 +1,39 @@
+{
+  "manifest_version": 3,
+  "name": "PolyTrack Autopilot",
+  "version": "0.1.0",
+  "description": "Experimental tools for inspecting PolyTrack and recording/replaying driving inputs.",
+  "minimum_chrome_version": "116",
+  "permissions": ["storage"],
+  "host_permissions": [
+    "https://*.itch.zone/*",
+    "https://*.itch.io/*",
+    "https://*.kodub.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.itch.zone/*",
+        "https://*.itch.io/*",
+        "https://*.kodub.com/*"
+      ],
+      "js": ["src/content.js"],
+      "css": ["src/panel.css"],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["src/page-bridge.js"],
+      "matches": [
+        "https://*.itch.zone/*",
+        "https://*.itch.io/*",
+        "https://*.kodub.com/*"
+      ]
+    }
+  ],
+  "action": {
+    "default_title": "PolyTrack Autopilot"
+  }
+}
