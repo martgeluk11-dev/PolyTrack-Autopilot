@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "PolyTrack Autopilot",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Decode PolyTrack trackcodes and inspect map block data, with local practice recording tools.",
   "minimum_chrome_version": "116",
   "host_permissions": [
@@ -21,6 +21,7 @@
       "js": [
         "src/analysis.js",
         "src/track-decoder.js",
+        "src/autopilot.js",
         "src/content.js"
       ],
       "css": [
