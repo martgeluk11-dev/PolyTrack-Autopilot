@@ -72,8 +72,11 @@
 
     // Conservative checkpoint approach speed. This is an initial baseline,
     // not a track-trained racing-line optimizer.
+    const distance = length({ x: target.x - position.x, y: target.y - position.y, z: target.z - position.z });
     const turnSeverity = Math.abs(angle);
-    const targetSpeed = clamp(175 - turnSeverity * 205, 42, 175);
+    const cornerSpeed = 175 - turnSeverity * 205;
+    const approachSpeed = Math.sqrt(2 * 7.5 * Math.max(0, distance)) * 3.6;
+    const targetSpeed = clamp(Math.min(cornerSpeed, approachSpeed), 25, 175);
     const brake = speed > targetSpeed + 7 || (turnSeverity > 1.05 && speed > 55);
     const throttle = !brake && speed < targetSpeed + 5;
 
@@ -83,7 +86,7 @@
       steering,
       speedKmh: speed,
       targetSpeedKmh: targetSpeed,
-      distance: length({ x: target.x - position.x, y: target.y - position.y, z: target.z - position.z }),
+      distance,
       inputs: {
         ArrowLeft: steering < -0.13,
         ArrowRight: steering > 0.13,
