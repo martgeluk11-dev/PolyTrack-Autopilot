@@ -1,22 +1,20 @@
 (() => {
   "use strict";
-
-  // Each frame gets its own panel. The top-level game frame is preferred by
-  // the user; duplicate panels are avoided within each document.
   if (window.__PT_AUTOPILOT_LOADED__) return;
   window.__PT_AUTOPILOT_LOADED__ = true;
 
-  const KEYS = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "w", "a", "s", "d", " "];
+  const KEYS = new Set(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "w", "a", "s", "d", " ", "Shift"]);
   const state = {
     recording: false,
     replaying: false,
     startedAt: 0,
     events: [],
+    recordedHeld: new Set(),
     replayTimers: [],
-    heldKeys: new Set(),
-    lastSavedAt: null
+    replayHeld: new Set()
   };
 
+  const elapsed = () => Math.max(0, Math.round(performance.now() - state.startedAt));
   const isGameLike = () => {
     const canvases = [...document.querySelectorAll("canvas")];
     return canvases.some(c => {
@@ -26,79 +24,70 @@
   };
 
   function findGameTarget() {
-    const canvases = [...document.querySelectorAll("canvas")];
-    const canvas = canvases.sort((a, b) => {
-      const ar = a.getBoundingClientRect();
-      const br = b.getBoundingClientRect();
-      return (br.width * br.height) - (ar.width * ar.height);
-    })[0];
-    return canvas || document.activeElement || document.body;
+    return [...document.querySelectorAll("canvas")]
+      .map(canvas => ({ canvas, rect: canvas.getBoundingClientRect() }))
+      .filter(x => x.rect.width > 200 && x.rect.height > 120)
+      .sort((a, b) => b.rect.width * b.rect.height - a.rect.width * a.rect.height)[0]?.canvas
+      || document.activeElement
+      || document.body;
   }
 
-  function sendKey(type, key) {
-    const target = findGameTarget();
-    const codeMap = {
+  function keyCode(key) {
+    return ({
       ArrowUp: "ArrowUp", ArrowDown: "ArrowDown",
       ArrowLeft: "ArrowLeft", ArrowRight: "ArrowRight",
-      " ": "Space", w: "KeyW", a: "KeyA", s: "KeyS", d: "KeyD"
-    };
-    const event = new KeyboardEvent(type, {
-      key, code: codeMap[key] || key,
-      bubbles: true, cancelable: true,
-      composed: true,
-      view: window
-    });
-    try { target.dispatchEvent(event); } catch {}
-    try { document.dispatchEvent(new KeyboardEvent(type, {
-      key, code: codeMap[key] || key, bubbles: true, cancelable: true
-    })); } catch {}
-    if (type === "keydown") state.heldKeys.add(key);
-    else state.heldKeys.delete(key);
+      " ": "Space", Shift: "Shift",
+      w: "KeyW", a: "KeyA", s: "KeyS", d: "KeyD"
+    })[key] || key;
   }
 
-  function releaseAll() {
-    for (const key of [...state.heldKeys]) sendKey("keyup", key);
-    state.heldKeys.clear();
+  function dispatchKey(type, key) {
+    const target = findGameTarget();
+    try { target.focus?.({ preventScroll: true }); } catch {}
+    const event = new KeyboardEvent(type, {
+      key, code: keyCode(key), bubbles: true, cancelable: true,
+      composed: true, view: window
+    });
+    target.dispatchEvent(event);
+    if (type === "keydown") state.replayHeld.add(key);
+    else state.replayHeld.delete(key);
+  }
+
+  function releaseReplayKeys() {
+    for (const key of [...state.replayHeld]) dispatchKey("keyup", key);
+    state.replayHeld.clear();
   }
 
   function setStatus(message, kind = "") {
     const el = document.querySelector("#ptap-status");
+    if (el) { el.textContent = message; el.dataset.kind = kind; }
+  }
+
+  function formatTime(ms) {
+    const seconds = Math.floor(ms / 1000);
+    const centiseconds = Math.floor((ms % 1000) / 10);
+    return seconds + "." + String(centiseconds).padStart(2, "0") + "s";
+  }
+
+  function renderAnalysis(events, duration) {
+    const el = document.querySelector("#ptap-analysis");
     if (!el) return;
-    el.textContent = message;
-    el.dataset.kind = kind;
-  }
-
-  function saveRecording() {
-    const payload = {
-      version: 1,
-      createdAt: new Date().toISOString(),
-      durationMs: state.events.length ? state.events[state.events.length - 1].t : 0,
-      events: state.events
-    };
-    try {
-      const request = indexedDB.open("pt-autopilot", 1);
-      request.onupgradeneeded = () => {
-        const db = request.result;
-        if (!db.objectStoreNames.contains("recordings")) db.createObjectStore("recordings");
-      };
-      request.onsuccess = () => {
-        const db = request.result;
-        const tx = db.transaction("recordings", "readwrite");
-        tx.objectStore("recordings").put(payload, "latest");
-        tx.oncomplete = () => {
-          state.lastSavedAt = payload.createdAt;
-          setStatus(`Saved ${state.events.length} input events`, "good");
-          db.close();
-        };
-        tx.onerror = () => setStatus("Could not save recording", "bad");
-      };
-      request.onerror = () => setStatus("Storage unavailable", "bad");
-    } catch {
-      setStatus("Storage unavailable", "bad");
+    if (!window.PTAPAnalysis) {
+      el.textContent = "Analysis module unavailable";
+      return;
     }
+    const report = window.PTAPAnalysis.analyze(events, duration, 8);
+    const p = report.percentages;
+    el.innerHTML = `
+      <div class="ptap-metric"><span>Recorded duration</span><b>${formatTime(report.durationMs)}</b></div>
+      <div class="ptap-metric"><span>Throttle</span><b>${p.throttle}%</b></div>
+      <div class="ptap-metric"><span>Brake</span><b>${p.brake}%</b></div>
+      <div class="ptap-metric"><span>Steering input</span><b>${Math.round(p.left + p.right)}%</b></div>
+      <div class="ptap-metric"><span>Input changes</span><b>${report.transitions}</b></div>
+      <div class="ptap-metric"><span>Brake + steering overlap</span><b>${formatTime(report.brakingWhileTurningMs)}</b></div>`;
   }
 
-  function loadRecording() {
+  function openDb() {
     return new Promise((resolve, reject) => {
       const request = indexedDB.open("pt-autopilot", 1);
       request.onupgradeneeded = () => {
@@ -106,30 +95,66 @@
           request.result.createObjectStore("recordings");
         }
       };
-      request.onsuccess = () => {
-        const db = request.result;
-        const tx = db.transaction("recordings", "readonly");
-        const get = tx.objectStore("recordings").get("latest");
-        get.onsuccess = () => { resolve(get.result || null); db.close(); };
-        get.onerror = () => { reject(get.error); db.close(); };
-      };
+      request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
     });
+  }
+
+  async function saveRecording() {
+    const payload = {
+      version: 1,
+      id: "run-" + Date.now(),
+      createdAt: new Date().toISOString(),
+      durationMs: elapsed(),
+      events: state.events
+    };
+    try {
+      const db = await openDb();
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction("recordings", "readwrite");
+        const store = tx.objectStore("recordings");
+        store.put(payload, "latest");
+        store.put(payload, payload.id);
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+      });
+      db.close();
+      renderAnalysis(payload.events, payload.durationMs);
+      setStatus("Saved " + payload.events.length + " input events", "good");
+    } catch {
+      setStatus("Could not save recording", "bad");
+    }
+  }
+
+  async function loadRecording() {
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction("recordings", "readonly");
+      const get = tx.objectStore("recordings").get("latest");
+      get.onsuccess = () => { const value = get.result || null; db.close(); resolve(value); };
+      get.onerror = () => { db.close(); reject(get.error); };
+    });
+  }
+
+  function finishRecording() {
+    if (!state.recording) return;
+    const t = elapsed();
+    for (const key of [...state.recordedHeld]) {
+      state.events.push({ t, type: "keyup", key });
+    }
+    state.recordedHeld.clear();
+    state.recording = false;
+    saveRecording();
+    updateButtons();
   }
 
   function startRecording() {
     stopReplay();
     state.events = [];
-    state.recording = true;
+    state.recordedHeld.clear();
     state.startedAt = performance.now();
-    setStatus("Recording — drive your lap now", "live");
-    updateButtons();
-  }
-
-  function stopRecording() {
-    if (!state.recording) return;
-    state.recording = false;
-    saveRecording();
+    state.recording = true;
+    setStatus("Recording — drive a practice lap", "live");
     updateButtons();
   }
 
@@ -137,40 +162,39 @@
     state.replaying = false;
     for (const id of state.replayTimers) clearTimeout(id);
     state.replayTimers = [];
-    releaseAll();
+    releaseReplayKeys();
     updateButtons();
   }
 
   async function startReplay() {
-    if (state.recording) stopRecording();
+    if (state.recording) finishRecording();
     stopReplay();
     let recording;
     try { recording = await loadRecording(); }
-    catch { setStatus("Could not load recording", "bad"); return; }
+    catch { setStatus("Could not load saved run", "bad"); return; }
     if (!recording?.events?.length) {
-      setStatus("No saved lap yet — record one first", "bad");
+      setStatus("No saved run — record a practice lap first", "bad");
       return;
     }
-
     state.replaying = true;
     const started = performance.now();
-    setStatus(`Replaying ${recording.events.length} events…`, "live");
+    setStatus("Replaying saved inputs…", "live");
     updateButtons();
 
-    for (const event of recording.events) {
-      const id = setTimeout(() => {
+    recording.events.forEach((event, index) => {
+      const timer = setTimeout(() => {
         if (!state.replaying) return;
-        sendKey(event.type, event.key);
-        if (event === recording.events[recording.events.length - 1]) {
-          const finishId = setTimeout(() => {
+        dispatchKey(event.type, event.key);
+        if (index === recording.events.length - 1) {
+          const finish = setTimeout(() => {
             stopReplay();
-            setStatus("Replay finished (timing-based)", "good");
-          }, 40);
-          state.replayTimers.push(finishId);
+            setStatus("Replay finished · timing-based", "good");
+          }, 30);
+          state.replayTimers.push(finish);
         }
       }, Math.max(0, event.t - (performance.now() - started)));
-      state.replayTimers.push(id);
-    }
+      state.replayTimers.push(timer);
+    });
   }
 
   function updateButtons() {
@@ -184,20 +208,23 @@
   function diagnostics() {
     const canvases = [...document.querySelectorAll("canvas")].map((c, i) => {
       const r = c.getBoundingClientRect();
-      return { index: i, width: c.width, height: c.height,
+      return {
+        index: i, width: c.width, height: c.height,
         displayWidth: Math.round(r.width), displayHeight: Math.round(r.height),
-        visible: r.width > 0 && r.height > 0 };
+        visible: r.width > 0 && r.height > 0
+      };
     });
     return {
-      extension: "PolyTrack Autopilot 0.1.0",
-      href: location.href,
-      title: document.title,
+      extension: "PolyTrack Autopilot 0.2.0",
+      pageOrigin: location.origin,
+      pageTitle: document.title,
       frame: window === window.top ? "top" : "embedded",
       userAgent: navigator.userAgent,
       canvases,
       iframeCount: document.querySelectorAll("iframe").length,
       gameLike: isGameLike(),
-      note: "No vehicle telemetry or track geometry is assumed by this diagnostic."
+      analysisAvailable: Boolean(window.PTAPAnalysis),
+      note: "This report contains page and canvas metadata only; no cookies or account data."
     };
   }
 
@@ -211,55 +238,66 @@
         <button id="ptap-min" type="button" aria-label="Minimize">−</button>
       </div>
       <div class="ptap-body">
-        <div id="ptap-status" data-kind="neutral">Game detected · experimental tools</div>
+        <div id="ptap-status" data-kind="neutral">Game detected · practice tools</div>
         <div class="ptap-actions">
           <button id="ptap-record" type="button">Record lap</button>
           <button id="ptap-replay" type="button">Replay lap</button>
-          <button id="ptap-stop" type="button">Stop bot</button>
+          <button id="ptap-stop" type="button">Stop</button>
+        </div>
+        <div class="ptap-analysis-wrap">
+          <div class="ptap-section-title">LAST RUN · INPUT ANALYSIS</div>
+          <div id="ptap-analysis">Record a practice lap to see its input breakdown.</div>
         </div>
         <button id="ptap-diagnostics" class="ptap-secondary" type="button">Copy diagnostics</button>
-        <p class="ptap-note">Replay is timing-based, not an optimized or adaptive racing bot.</p>
+        <p class="ptap-note">Replay repeats key timing. It does not calculate a racing line or adapt to collisions.</p>
       </div>`;
     document.documentElement.appendChild(panel);
 
     panel.querySelector("#ptap-record").addEventListener("click", () => {
-      state.recording ? stopRecording() : startRecording();
+      state.recording ? finishRecording() : startRecording();
     });
     panel.querySelector("#ptap-replay").addEventListener("click", startReplay);
     panel.querySelector("#ptap-stop").addEventListener("click", () => {
       stopReplay();
-      if (state.recording) stopRecording();
-      setStatus("Stopped — all keys released", "good");
+      if (state.recording) finishRecording();
+      setStatus("Stopped · held keys released", "good");
     });
     panel.querySelector("#ptap-diagnostics").addEventListener("click", async () => {
-      const text = JSON.stringify(diagnostics(), null, 2);
       try {
-        await navigator.clipboard.writeText(text);
+        await navigator.clipboard.writeText(JSON.stringify(diagnostics(), null, 2));
         setStatus("Diagnostics copied", "good");
-      } catch {
-        setStatus(text.slice(0, 110), "bad");
-      }
+      } catch { setStatus("Clipboard unavailable on this page", "bad"); }
     });
     panel.querySelector("#ptap-min").addEventListener("click", () => {
       panel.classList.toggle("ptap-collapsed");
     });
+    updateButtons();
+    loadRecording().then(run => {
+      if (run?.events) renderAnalysis(run.events, run.durationMs);
+    }).catch(() => {});
   }
 
   window.addEventListener("keydown", event => {
-    if (!state.recording || event.repeat || !KEYS.includes(event.key)) return;
-    state.events.push({ t: Math.round(performance.now() - state.startedAt), type: "keydown", key: event.key });
+    if (!state.recording || event.repeat || !KEYS.has(event.key)) return;
+    if (event.target?.closest?.("#ptap-panel")) return;
+    if (state.recordedHeld.has(event.key)) return;
+    state.recordedHeld.add(event.key);
+    state.events.push({ t: elapsed(), type: "keydown", key: event.key });
   }, true);
 
   window.addEventListener("keyup", event => {
-    if (!state.recording || !KEYS.includes(event.key)) return;
-    state.events.push({ t: Math.round(performance.now() - state.startedAt), type: "keyup", key: event.key });
+    if (!state.recording || !KEYS.has(event.key)) return;
+    if (!state.recordedHeld.delete(event.key)) return;
+    state.events.push({ t: elapsed(), type: "keyup", key: event.key });
   }, true);
 
   window.addEventListener("blur", () => {
     if (state.replaying) stopReplay();
+    if (state.recording) finishRecording();
   });
   document.addEventListener("visibilitychange", () => {
     if (document.hidden && state.replaying) stopReplay();
+    if (document.hidden && state.recording) finishRecording();
   });
 
   mountPanel();
