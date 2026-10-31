@@ -220,7 +220,7 @@
       const meta = decoded.metadata;
       const bounds = report.bounds;
       const blockRows = report.partCounts.slice(0, 14).map(item =>
-        "<div class=\\"ptap-metric\\"><span>Block ID " + item.id + "</span><b>" + item.count + "</b></div>"
+        '<div class="ptap-metric"><span>Block ID ' + item.id + '</span><b>' + item.count + '</b></div>'
       ).join("");
       output.innerHTML = `
         <div class="ptap-track-success">TRACK DECODED · ${decoded.sourceFormat}</div>
