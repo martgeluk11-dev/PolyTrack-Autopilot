@@ -354,6 +354,7 @@
 
   window.addEventListener("keyup", event => {
     if (!state.recording || !KEYS.has(event.key)) return;
+    if (event.target?.closest?.("#ptap-panel")) return;
     if (!state.recordedHeld.delete(event.key)) return;
     state.events.push({ t: elapsed(), type: "keyup", key: event.key });
   }, true);
