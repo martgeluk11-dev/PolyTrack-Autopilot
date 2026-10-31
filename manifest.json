@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "PolyTrack Autopilot",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Decode PolyTrack trackcodes and inspect map block data, with local practice recording tools.",
   "minimum_chrome_version": "116",
   "host_permissions": [
@@ -11,6 +11,18 @@
     "https://*.itch.io/*"
   ],
   "content_scripts": [
+    {
+      "matches": [
+        "https://kodub.com/*",
+        "https://www.kodub.com/*",
+        "https://*.itch.zone/*",
+        "https://*.itch.io/*"
+      ],
+      "js": ["src/page-bridge.js"],
+      "run_at": "document_start",
+      "world": "MAIN",
+      "all_frames": true
+    },
     {
       "matches": [
         "https://kodub.com/*",
