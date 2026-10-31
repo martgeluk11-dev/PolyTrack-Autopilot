@@ -4,11 +4,13 @@ An experimental Manifest V3 Chrome extension for PolyTrack.
 
 ## Current status
 
-**Early development — not a finished fastest-line solver yet.**
+**Early development — experimental steering controller, not a finished autonomous racer.**
 
 The first version provides:
 - a small in-game control panel;
 - a browser-side decoder for PolyTrack save/export trackcodes (including `PolyTrack2` exports);
+- an experimental closed-loop checkpoint steering controller with speed-aware throttle/brake decisions;
+- a fail-safe telemetry message interface that releases controls if state data is invalid;
 - a track inspector showing environment, block counts by block ID, checkpoint count, and coordinate bounds;
 - local decoded JSON export for further geometry research;
 - a local input-analysis report after recording (throttle, brake, steering, input changes, and brake/steering overlap);
@@ -49,8 +51,9 @@ See [runtime research and integration notes](docs/RESEARCH.md) for the verified 
 3. Establish a reliable read-only bridge to vehicle state and track/checkpoint progress.
 4. Validate a physics model against controlled in-game observations.
 5. Build candidate racing lines and optimize braking, steering and throttle.
-6. Replace timing replay with closed-loop feedback control.
-7. Add automated tests and compare predicted lap times with actual runs.
+6. Connect and validate the live telemetry adapter, including the vehicle forward axis and steering direction.
+7. Replace timing replay with closed-loop feedback control and optimize a racing line using the verified physics model.
+8. Add automated tests and compare predicted lap times with actual runs.
 
 ## Fair-play boundary
 
