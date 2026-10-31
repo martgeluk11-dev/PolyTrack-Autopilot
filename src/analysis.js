@@ -6,7 +6,7 @@
     brake: ["s", "ArrowDown"],
     left: ["a", "ArrowLeft"],
     right: ["d", "ArrowRight"],
-    nitro: ["Shift", " "]
+    nitro: ["Shift", "Space"]
   };
 
   function normalizeKey(key) {
