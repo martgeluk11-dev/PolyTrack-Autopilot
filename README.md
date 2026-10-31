@@ -35,6 +35,8 @@ It does **not** currently decode PolyTrack track geometry, read vehicle telemetr
 
 Replay is timing-based. It is useful for repeatability, but it is not yet adaptive and will drift if the game runs at a different speed or the car collides differently.
 
+See [runtime research and integration notes](docs/RESEARCH.md) for the verified game architecture and the next telemetry milestone.
+
 ## Development roadmap
 
 1. Identify the exact current PolyTrack build and supported game frame.
