@@ -152,6 +152,7 @@
 
   function startRecording() {
     stopReplay();
+    if (window.PTAPAutopilot?.status().enabled) window.PTAPAutopilot.stop();
     state.events = [];
     state.recordedHeld.clear();
     state.startedAt = performance.now();
@@ -169,6 +170,9 @@
   }
 
   async function startReplay() {
+    if (window.PTAPAutopilot?.status().enabled) window.PTAPAutopilot.stop();
+    const autopilotButton = document.querySelector("#ptap-autopilot");
+    if (autopilotButton) autopilotButton.textContent = "Start autopilot";
     if (state.recording) finishRecording();
     stopReplay();
     let recording;
@@ -318,7 +322,7 @@
           <div id="ptap-analysis">Record a practice lap to see its input breakdown.</div>
         </div>
         <button id="ptap-diagnostics" class="ptap-secondary" type="button">Copy diagnostics</button>
-        <p class="ptap-note">Autopilot controller is experimental and requires live car telemetry. Timing replay is not adaptive.</p>
+        <p class="ptap-note">Autopilot is experimental · requires a decoded track · local practice only.</p>
       </div>`;
     document.documentElement.appendChild(panel);
 
@@ -342,6 +346,9 @@
     panel.querySelector("#ptap-decode-track").addEventListener("click", analyzeTrackCode);
     panel.querySelector("#ptap-stop").addEventListener("click", () => {
       stopReplay();
+      if (window.PTAPAutopilot?.status().enabled) window.PTAPAutopilot.stop();
+      const autopilotButton = document.querySelector("#ptap-autopilot");
+      if (autopilotButton) autopilotButton.textContent = "Start autopilot";
       if (state.recording) finishRecording();
       setStatus("Stopped · held keys released", "good");
     });
