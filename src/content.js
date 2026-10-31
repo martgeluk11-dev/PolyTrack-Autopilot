@@ -82,9 +82,11 @@
       <div class="ptap-metric"><span>Recorded duration</span><b>${formatTime(report.durationMs)}</b></div>
       <div class="ptap-metric"><span>Throttle</span><b>${p.throttle}%</b></div>
       <div class="ptap-metric"><span>Brake</span><b>${p.brake}%</b></div>
-      <div class="ptap-metric"><span>Steering input</span><b>${Math.round(p.left + p.right)}%</b></div>
+      <div class="ptap-metric"><span>Left / right</span><b>${p.left}% / ${p.right}%</b></div>
       <div class="ptap-metric"><span>Input changes</span><b>${report.transitions}</b></div>
-      <div class="ptap-metric"><span>Brake + steering overlap</span><b>${formatTime(report.brakingWhileTurningMs)}</b></div>`;
+      <div class="ptap-metric"><span>Brake + steering overlap</span><b>${formatTime(report.brakingWhileTurningMs)}</b></div>
+      <div class="ptap-bars-label">Throttle activity across the run</div>
+      <div class="ptap-bars">${report.segments.map(segment => `<span title="Segment ${segment.index}: ${segment.throttlePct}% throttle"><i style="height:${segment.throttlePct}%"></i></span>`).join("")}</div>`;
   }
 
   function openDb() {
