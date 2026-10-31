@@ -28,10 +28,21 @@
     return bytes;
   }
 
-  async function inflate(bytes) {
-    if (typeof DecompressionStream !== "function") throw new Error("Deze browser ondersteunt trackcode-decompressie niet.");
-    const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate"));
-    return new Uint8Array(await new Response(stream).arrayBuffer());
+  async function inflate(bytes, stage = "trackcode") {
+    if (typeof DecompressionStream !== "function") {
+      throw new Error("Deze browser ondersteunt trackcode-decompressie niet. Update Chrome of Edge.");
+    }
+    const formats = ["deflate", "deflate-raw", "gzip"];
+    const failures = [];
+    for (const format of formats) {
+      try {
+        const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream(format));
+        return new Uint8Array(await new Response(stream).arrayBuffer());
+      } catch (error) {
+        failures.push(format + ": " + (error?.message || "decompressie mislukt"));
+      }
+    }
+    throw new Error("De " + stage + " kon niet worden gedecomprimeerd. De code is mogelijk beschadigd of gebruikt een onbekend compressieformaat. (" + failures.join("; ") + ")");
   }
 
   function uintLE(bytes, offset, length) {
@@ -88,11 +99,27 @@
   }
 
   async function decode(input) {
-    const code = String(input || "").replace(/\s+/g, "");
+    let code = String(input || "")
+      .replace(/^\\uFEFF/, "")
+      .replace(/[\\u200B-\\u200D\\u2060]/g, "")
+      .trim()
+      .replace(/^\x60{3}[^\\n]*\\n?|\\n?\x60{3}$/g, "")
+      .replace(/^[\\"'“”‘’]|[\\"'“”‘’]$/g, "")
+      .replace(/\\s+/g, "");
+    if (/%[0-9A-Fa-f]{2}/.test(code)) {
+      try { code = decodeURIComponent(code); } catch {}
+      code = code.replace(/\\s+/g, "");
+    }
     if (!code) throw new Error("Plak eerst een PolyTrack-trackcode.");
+    if (code.startsWith("http://") || code.startsWith("https://")) {
+      throw new Error("Dit is een link, geen trackcode. Open de track en kopieer de volledige PolyTrack-code.");
+    }
+    if (!code.startsWith("PolyTrack2") && !/^[A-Za-z0-9]+$/.test(code)) {
+      throw new Error("Dit lijkt geen geldige PolyTrack-code. Kopieer de volledige code, inclusief de PolyTrack2-prefix als die erbij staat.");
+    }
     if (code.startsWith("PolyTrack2")) {
-      const stageOne = await inflate(readPacked(code.slice(10)));
-      const payload = await inflate(readPacked(new TextDecoder().decode(stageOne)));
+      const stageOne = await inflate(readPacked(code.slice(10)), "Eerste exportlaag");
+      const payload = await inflate(readPacked(new TextDecoder().decode(stageOne)), "Tweede exportlaag");
       let cursor = 0;
       if (payload.length < 2) throw new Error("Exportcode bevat geen metadata.");
       const nameLength = payload[cursor++];
@@ -114,8 +141,8 @@
         track: parseRaw(payload, cursor)
       };
     }
-    const stageOne = await inflate(readPacked(code));
-    const raw = await inflate(readPacked(new TextDecoder().decode(stageOne)));
+    const stageOne = await inflate(readPacked(code), "Eerste save-laag");
+    const raw = await inflate(readPacked(new TextDecoder().decode(stageOne)), "Tweede save-laag");
     return { kind: "save", sourceFormat: "PolyTrack-save", metadata: null, track: parseRaw(raw) };
   }
 
