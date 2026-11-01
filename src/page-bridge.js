@@ -178,8 +178,13 @@
     window.Worker = PTAPWorker;
   }
 
-  window.postMessage({
-    type: "PTAP_PAGE_BRIDGE_READY",
-    source: "polytrack-autopilot"
-  }, "*");
+  window.addEventListener("message", event => {
+    if (event.source !== window || event.data?.source !== "polytrack-autopilot" ||
+        event.data?.type !== "PTAP_PAGE_BRIDGE_PING") return;
+    window.postMessage({
+      type: "PTAP_PAGE_BRIDGE_READY",
+      source: "polytrack-autopilot",
+      diagnostics: { ...bridgeDiagnostics, href: location.href, frame: window === window.top ? "top" : "embedded" }
+    }, "*");
+  });
 })();
