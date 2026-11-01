@@ -339,6 +339,8 @@
       const status = window.PTAPAutopilot?.status();
       if (status?.enabled) {
         window.PTAPAutopilot.stop();
+        window.__PTAP_AUTOPILOT_ARMED__ = false;
+        window.__PTAP_PLANNED_ROUTE__ = null;
         setStatus("Autopilot stopped · controls released", "good");
         panel.querySelector("#ptap-autopilot").textContent = "Start autopilot";
         return;
@@ -353,19 +355,25 @@
       // game publishes it.
       stopReplay();
       if (state.recording) finishRecording();
+      window.__PTAP_PLANNED_ROUTE__ = null;
+      window.__PTAP_ROUTE_BUILDING__ = false;
+      window.__PTAP_AUTOPILOT_ARMED__ = true;
       window.PTAPAutopilot.start();
       panel.querySelector("#ptap-autopilot").textContent = "Stop autopilot";
       setStatus(
-        window.__PTAP_LAST_GAME_STATE__
-          ? "Autopilot armed · waiting for the next car update"
-          : "Autopilot armed · start the race; no test lap needed",
+        window.__PTAP_TRACK_GEOMETRY__
+          ? "Autopilot armed · building route from 3D track geometry"
+          : "Autopilot armed · waiting for game track geometry (no test lap needed)",
         "live"
       );
+      if (window.__PTAP_LAST_GAME_STATE__) buildPlannedRoute(window.__PTAP_LAST_GAME_STATE__);
     });
     panel.querySelector("#ptap-decode-track").addEventListener("click", analyzeTrackCode);
     panel.querySelector("#ptap-stop").addEventListener("click", () => {
       stopReplay();
       if (window.PTAPAutopilot?.status().enabled) window.PTAPAutopilot.stop();
+      window.__PTAP_AUTOPILOT_ARMED__ = false;
+      window.__PTAP_PLANNED_ROUTE__ = null;
       const autopilotButton = document.querySelector("#ptap-autopilot");
       if (autopilotButton) autopilotButton.textContent = "Start autopilot";
       if (state.recording) finishRecording();
@@ -384,6 +392,32 @@
     loadRecording().then(run => {
       if (run?.events) renderAnalysis(run.events, run.durationMs);
     }).catch(() => {});
+  }
+
+  function buildPlannedRoute(carState) {
+    if (window.__PTAP_ROUTE_BUILDING__ || window.__PTAP_PLANNED_ROUTE__) return;
+    const decoded = window.__PTAP_LAST_DECODED_TRACK__;
+    const geometry = window.__PTAP_TRACK_GEOMETRY__;
+    if (!decoded?.track?.parts?.length || !geometry || !window.PTAPTrackPlanner) return;
+    window.__PTAP_ROUTE_BUILDING__ = true;
+    setStatus("Building 3D road surface and route…", "live");
+    setTimeout(() => {
+      try {
+        const result = window.PTAPTrackPlanner.build(decoded, geometry, carState.position);
+        if (!result.ok) {
+          setStatus("Route planner: " + result.reason, "bad");
+          window.__PTAP_ROUTE_BUILDING__ = false;
+          return;
+        }
+        window.__PTAP_PLANNED_ROUTE__ = result.route;
+        window.__PTAP_ROUTE_STATS__ = result.stats;
+        setStatus("3D route ready · " + result.stats.routePoints + " points · " + result.stats.routeLengthM + " m", "good");
+      } catch (error) {
+        setStatus("Route planner error · " + (error?.message || "unknown error"), "bad");
+      } finally {
+        window.__PTAP_ROUTE_BUILDING__ = false;
+      }
+    }, 30);
   }
 
   function resolveCheckpointTarget(track, state) {
@@ -428,6 +462,13 @@
       window.__PTAP_PAGE_BRIDGE_READY__ = true;
       return;
     }
+    if (event.data.type === "PTAP_PAGE_BRIDGE_TRACK_GEOMETRY") {
+      window.__PTAP_TRACK_GEOMETRY__ = event.data.library || null;
+      if (window.__PTAP_AUTOPILOT_ARMED__ && window.__PTAP_LAST_DECODED_TRACK__ && window.__PTAP_LAST_GAME_STATE__) {
+        buildPlannedRoute(window.__PTAP_LAST_GAME_STATE__);
+      }
+      return;
+    }
     if (event.data.type !== "PTAP_PAGE_BRIDGE_TELEMETRY") return;
 
     const raw = event.data.state;
@@ -454,16 +495,12 @@
       return;
     }
 
-    const target = resolveCheckpointTarget(window.__PTAP_LAST_DECODED_TRACK__, raw);
-    if (!target) {
-      window.PTAPAutopilot.stop();
-      const button = document.querySelector("#ptap-autopilot");
-      if (button) button.textContent = "Start autopilot";
-      setStatus("Stopped · checkpoint target could not be matched to this track", "bad");
+    if (!window.__PTAP_PLANNED_ROUTE__) {
+      buildPlannedRoute(state);
       return;
     }
 
-    state.next_checkpoint_position = target;
+    state.route = window.__PTAP_PLANNED_ROUTE__;
     const result = window.PTAPAutopilot.update(state);
     if (result?.valid) {
       const direction = Math.round(result.angle * 180 / Math.PI);
@@ -475,6 +512,8 @@
     if (event.target?.closest?.("#ptap-panel")) return;
     if (event.isTrusted && window.PTAPAutopilot?.status().enabled) {
       window.PTAPAutopilot.stop();
+      window.__PTAP_AUTOPILOT_ARMED__ = false;
+      window.__PTAP_PLANNED_ROUTE__ = null;
       const button = document.querySelector("#ptap-autopilot");
       if (button) button.textContent = "Start autopilot";
       setStatus("Autopilot stopped · manual input detected", "good");
