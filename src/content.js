@@ -287,7 +287,7 @@
       };
     });
     return {
-      extension: "PolyTrack Autopilot 0.5.0",
+      extension: "PolyTrack Autopilot 0.6.0",
       autopilotController: Boolean(window.PTAPAutopilot),
       pageBridgeReady: Boolean(window.__PTAP_PAGE_BRIDGE_READY__),
       latestTelemetry: window.__PTAP_LAST_GAME_STATE__ || null,
