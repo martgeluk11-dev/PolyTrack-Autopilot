@@ -11,26 +11,35 @@
   let geometrySent = false;
 
   function numericVertices(part) {
-    const candidates = [
-      part?.vertices,
-      part?.vertices?.array,
-      part?.geometry?.attributes?.position?.array,
-      part?.geometry?.attributes?.position,
-      part?.mesh?.geometry?.attributes?.position?.array
-    ];
-    for (const candidate of candidates) {
-      if (!candidate) continue;
-      const source = candidate.array || candidate;
-      if (ArrayBuffer.isView(source) || Array.isArray(source)) {
-        const values = Array.from(source, Number);
-        if (values.length >= 9 && values.length % 9 === 0 && values.every(Number.isFinite)) return values;
+    const geometry = part?.geometry || part?.mesh?.geometry;
+    const attribute = geometry?.attributes?.position;
+    const raw = part?.vertices?.array || part?.vertices || attribute?.array || attribute;
+    if (!raw) return null;
+    const positions = ArrayBuffer.isView(raw) || Array.isArray(raw)
+      ? Array.from(raw, Number)
+      : null;
+    if (!positions || positions.length < 9 || !positions.every(Number.isFinite)) return null;
+
+    // Some PolyTrack builds expose indexed BufferGeometry instead of the
+    // triangle-soup array used by the planner. Expand indices into triangles.
+    const indexSource = geometry?.index?.array || geometry?.index || part?.indices;
+    if (indexSource && (ArrayBuffer.isView(indexSource) || Array.isArray(indexSource))) {
+      const indices = Array.from(indexSource, Number);
+      const expanded = [];
+      for (let i = 0; i + 2 < indices.length; i += 3) {
+        for (let j = 0; j < 3; j++) {
+          const offset = indices[i + j] * 3;
+          if (!Number.isInteger(offset) || offset < 0 || offset + 2 >= positions.length) return null;
+          expanded.push(positions[offset], positions[offset + 1], positions[offset + 2]);
+        }
       }
+      if (expanded.length >= 9) return expanded;
     }
-    return null;
+    return positions.length % 9 === 0 ? positions : null;
   }
 
   function captureTrackGeometry(data) {
-    if (geometrySent || !Array.isArray(data?.trackParts) || !data.trackParts.length) return;
+    if (!Array.isArray(data?.trackParts) || !data.trackParts.length) return;
     const library = {};
     for (const part of data.trackParts) {
       if (!Number.isInteger(part?.id)) continue;
