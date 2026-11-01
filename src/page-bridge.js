@@ -10,17 +10,38 @@
   let lastSentAt = 0;
   let geometrySent = false;
 
+  function numericVertices(part) {
+    const candidates = [
+      part?.vertices,
+      part?.vertices?.array,
+      part?.geometry?.attributes?.position?.array,
+      part?.geometry?.attributes?.position,
+      part?.mesh?.geometry?.attributes?.position?.array
+    ];
+    for (const candidate of candidates) {
+      if (!candidate) continue;
+      const source = candidate.array || candidate;
+      if (ArrayBuffer.isView(source) || Array.isArray(source)) {
+        const values = Array.from(source, Number);
+        if (values.length >= 9 && values.length % 9 === 0 && values.every(Number.isFinite)) return values;
+      }
+    }
+    return null;
+  }
+
   function captureTrackGeometry(data) {
     if (geometrySent || !Array.isArray(data?.trackParts) || !data.trackParts.length) return;
     const library = {};
     for (const part of data.trackParts) {
-      if (!Number.isInteger(part?.id) || !part.vertices) continue;
-      const vertices = Array.from(part.vertices, Number);
-      if (vertices.length < 9 || vertices.length % 9 !== 0 || !vertices.every(Number.isFinite)) continue;
+      if (!Number.isInteger(part?.id)) continue;
+      const vertices = numericVertices(part);
+      if (!vertices) continue;
+      const center = part.detector?.center || part.detectorCenter;
+      const size = part.detector?.size || part.detectorSize;
       library[part.id] = {
         vertices,
-        detector: part.detector && part.detector.center?.length >= 3 && part.detector.size?.length >= 3
-          ? { center: Array.from(part.detector.center, Number), size: Array.from(part.detector.size, Number), type: Number(part.detector.type) }
+        detector: center?.length >= 3 && size?.length >= 3
+          ? { center: Array.from(center, Number), size: Array.from(size, Number), type: Number(part.detector?.type ?? part.detectorType ?? 0) }
           : null
       };
     }
