@@ -55,7 +55,7 @@
     const from = Number.isInteger(previous.routeIndex) ? Math.max(0, previous.routeIndex - 4) : 0;
     const to = Number.isInteger(previous.routeIndex)
       ? Math.min(points.length - 1, previous.routeIndex + 110)
-      : points.length - 1;
+      : Math.min(points.length - 1, 80);
     let nearestIndex = -1, nearestDistance = Infinity;
     for (let i = from; i <= to; i++) {
       const p = points[i];
