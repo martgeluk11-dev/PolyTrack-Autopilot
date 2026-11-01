@@ -8,6 +8,30 @@
   const STATE_BYTES = 227;
   let observedWorkers = 0;
   let lastSentAt = 0;
+  let geometrySent = false;
+
+  function captureTrackGeometry(data) {
+    if (geometrySent || !Array.isArray(data?.trackParts) || !data.trackParts.length) return;
+    const library = {};
+    for (const part of data.trackParts) {
+      if (!Number.isInteger(part?.id) || !part.vertices) continue;
+      const vertices = Array.from(part.vertices, Number);
+      if (vertices.length < 9 || vertices.length % 9 !== 0 || !vertices.every(Number.isFinite)) continue;
+      library[part.id] = {
+        vertices,
+        detector: part.detector && Array.isArray(part.detector.center) && Array.isArray(part.detector.size)
+          ? { center: part.detector.center.map(Number), size: part.detector.size.map(Number), type: Number(part.detector.type) }
+          : null
+      };
+    }
+    if (!Object.keys(library).length) return;
+    geometrySent = true;
+    window.postMessage({
+      type: "PTAP_PAGE_BRIDGE_TRACK_GEOMETRY",
+      source: "polytrack-autopilot",
+      library
+    }, "*");
+  }
 
   function asBuffer(value) {
     if (value instanceof ArrayBuffer) return value;
@@ -56,7 +80,12 @@
 
   function observeMessage(event) {
     const data = event?.data;
-    if (!data || data.messageType !== UPDATE_RESULT || !Array.isArray(data.carStateBuffers)) return;
+    if (!data) return;
+    if (data.messageType === 0 && Array.isArray(data.trackParts)) {
+      captureTrackGeometry(data);
+      return;
+    }
+    if (data.messageType !== UPDATE_RESULT || !Array.isArray(data.carStateBuffers)) return;
 
     const states = data.carStateBuffers.map(readState).filter(Boolean);
     if (!states.length) return;
