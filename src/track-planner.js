@@ -107,6 +107,25 @@
       candidates.sort((a,b)=>a[1]-b[1]);
       node.edges=candidates.slice(0,12);
     }
+
+    // Approximate distance-to-edge on the connected surface. This encourages
+    // the route search to stay away from road edges instead of cutting corners.
+    const queue=new MinHeap();
+    for(let i=0;i<nodes.length;i++){
+      nodes[i].clearance=Infinity;
+      if(nodes[i].edges.length<6){nodes[i].clearance=0.5;queue.push([0.5,i]);}
+    }
+    while(queue.size){
+      const [distance,index]=queue.pop();
+      if(distance!==nodes[index].clearance)continue;
+      for(const [next,length] of nodes[index].edges){
+        const candidate=distance+length;
+        if(candidate<nodes[next].clearance){
+          nodes[next].clearance=candidate;
+          queue.push([candidate,next]);
+        }
+      }
+    }
   }
 
   function detectorNodes(part, shape, nodes) {
@@ -121,10 +140,10 @@
         nodes[i].p[1]-part.y*5,
         nodes[i].p[2]-part.z*5
       ],part.rotationAxis,(4-part.rotation)&3);
-      const delta=rotate(detector.center,part.rotationAxis,part.rotation);
-      if(Math.abs(local[0]-delta[0])<=half[0] &&
-         Math.abs(local[1]-delta[1])<=half[1] &&
-         Math.abs(local[2]-delta[2])<=half[2]) result.push(i);
+      const centerLocal=detector.center;
+      if(Math.abs(local[0]-centerLocal[0])<=half[0] &&
+         Math.abs(local[1]-centerLocal[1])<=half[1] &&
+         Math.abs(local[2]-centerLocal[2])<=half[2]) result.push(i);
     }
     if(!result.length){
       let best=-1,bd=Infinity;
@@ -152,8 +171,9 @@
       const [d,i]=heap.pop();if(d!==cost[i])continue;
       if(goalSet.has(i)){end=i;break;}
       for(const [j,length] of nodes[i].edges){
-        const degree=Math.max(1,nodes[j].edges.length);
-        const edgeCost=length*(1+2.5/degree);
+        const clearance=Number.isFinite(nodes[j].clearance)?nodes[j].clearance:0;
+        const edgePenalty=1+5*Math.pow(Math.max(0,(3.2-clearance)/3.2),2);
+        const edgeCost=length*edgePenalty;
         const next=d+edgeCost;
         if(next<cost[j]){cost[j]=next;previous[j]=i;heap.push([next,j]);}
       }
