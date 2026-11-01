@@ -312,12 +312,13 @@
       };
     });
     return {
-      extension: "PolyTrack Autopilot 0.8.2",
+      extension: "PolyTrack Autopilot 0.8.3",
       autopilotController: Boolean(window.PTAPAutopilot),
       pageBridgeReady: Boolean(window.__PTAP_PAGE_BRIDGE_READY__),
       capturedGeometryPartTypes: Object.keys(window.__PTAP_TRACK_GEOMETRY__ || {}).length,
       geometryCacheAvailable: Boolean(window.__PTAP_GEOMETRY_CACHE_READY__),
       bridgeDiagnostics: window.__PTAP_BRIDGE_DIAGNOSTICS__ || null,
+      iframeSources: [...document.querySelectorAll("iframe")].map(frame => frame.src || "(same-origin, no src)").slice(0, 10),
       plannedRouteStats: window.__PTAP_ROUTE_STATS__ || null,
       routeBuildAttempted: Boolean(window.__PTAP_ROUTE_ATTEMPTED__),
       latestTelemetry: window.__PTAP_LAST_GAME_STATE__ || null,
@@ -537,6 +538,7 @@
     if (event.data?.source !== "polytrack-autopilot") return;
     if (event.data.type === "PTAP_PAGE_BRIDGE_READY") {
       window.__PTAP_PAGE_BRIDGE_READY__ = true;
+      window.__PTAP_BRIDGE_DIAGNOSTICS__ = event.data.diagnostics || null;
       return;
     }
     if (event.data.type === "PTAP_PAGE_BRIDGE_TRACK_GEOMETRY") {
@@ -642,6 +644,8 @@
     }
     if (document.hidden) releaseRecordedKeys();
   });
+
+  window.postMessage({ type: "PTAP_PAGE_BRIDGE_PING", source: "polytrack-autopilot" }, "*");
 
   mountPanel();
   const observer = new MutationObserver(() => {
