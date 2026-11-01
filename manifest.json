@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "PolyTrack Autopilot",
-  "version": "0.8.6",
+  "version": "0.8.7",
   "description": "Analyze 3D track geometry and use experimental flight-aware practice driving with landing recovery.",
   "minimum_chrome_version": "116",
   "host_permissions": [
