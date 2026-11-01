@@ -312,11 +312,12 @@
       };
     });
     return {
-      extension: "PolyTrack Autopilot 0.8.1",
+      extension: "PolyTrack Autopilot 0.8.2",
       autopilotController: Boolean(window.PTAPAutopilot),
       pageBridgeReady: Boolean(window.__PTAP_PAGE_BRIDGE_READY__),
       capturedGeometryPartTypes: Object.keys(window.__PTAP_TRACK_GEOMETRY__ || {}).length,
       geometryCacheAvailable: Boolean(window.__PTAP_GEOMETRY_CACHE_READY__),
+      bridgeDiagnostics: window.__PTAP_BRIDGE_DIAGNOSTICS__ || null,
       plannedRouteStats: window.__PTAP_ROUTE_STATS__ || null,
       routeBuildAttempted: Boolean(window.__PTAP_ROUTE_ATTEMPTED__),
       latestTelemetry: window.__PTAP_LAST_GAME_STATE__ || null,
