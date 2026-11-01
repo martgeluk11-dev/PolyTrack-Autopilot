@@ -32,34 +32,45 @@
     if (typeof DecompressionStream !== "function") {
       throw new Error("Deze browser ondersteunt trackcode-decompressie niet. Update Chrome of Edge.");
     }
+
+    // PolyTrack's packed 5/6-bit alphabet can leave one zero padding byte
+    // after the complete zlib stream. Chromium rejects that byte as junk,
+    // even though the compressed payload itself is valid.
+    const candidates = [bytes];
+    if (bytes.length > 1 && bytes[bytes.length - 1] === 0) {
+      candidates.push(bytes.subarray(0, bytes.length - 1));
+    }
+
     const formats = ["deflate", "deflate-raw", "gzip"];
     const failures = [];
-    for (const format of formats) {
-      let reader;
-      try {
-        // Read the decompression stream directly. Using Response(stream).arrayBuffer()
-        // can throw "Failed to fetch" in Chromium extension isolated worlds.
-        const source = new Blob([bytes]).stream();
-        const decompressed = source.pipeThrough(new DecompressionStream(format));
-        reader = decompressed.getReader();
-        const chunks = [];
-        let totalLength = 0;
-        while (true) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          chunks.push(value);
-          totalLength += value.length;
+    for (let candidateIndex = 0; candidateIndex < candidates.length; candidateIndex++) {
+      const candidate = candidates[candidateIndex];
+      for (const format of formats) {
+        let reader;
+        try {
+          const source = new Blob([candidate]).stream();
+          const decompressed = source.pipeThrough(new DecompressionStream(format));
+          reader = decompressed.getReader();
+          const chunks = [];
+          let totalLength = 0;
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            chunks.push(value);
+            totalLength += value.length;
+          }
+          const output = new Uint8Array(totalLength);
+          let offset = 0;
+          for (const chunk of chunks) {
+            output.set(chunk, offset);
+            offset += chunk.length;
+          }
+          return output;
+        } catch (error) {
+          try { await reader?.cancel(); } catch {}
+          const suffix = candidateIndex ? " (zonder laatste paddingbyte)" : "";
+          failures.push(format + suffix + ": " + (error?.message || "decompressie mislukt"));
         }
-        const output = new Uint8Array(totalLength);
-        let offset = 0;
-        for (const chunk of chunks) {
-          output.set(chunk, offset);
-          offset += chunk.length;
-        }
-        return output;
-      } catch (error) {
-        try { await reader?.cancel(); } catch {}
-        failures.push(format + ": " + (error?.message || "decompressie mislukt"));
       }
     }
     throw new Error("De " + stage + " kon niet worden gedecomprimeerd. (" + failures.join("; ") + ")");
