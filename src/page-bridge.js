@@ -14,6 +14,20 @@
     lastInbound: null, lastOutbound: null, geometryMessages: 0
   };
 
+  function publishFrameDiagnostics() {
+    if (window.parent === window) return;
+    const diagnostics = {
+      ...bridgeDiagnostics,
+      href: location.href,
+      frame: "embedded"
+    };
+    window.parent.postMessage({
+      type: "PTAP_FRAME_BRIDGE_DIAGNOSTICS",
+      source: "polytrack-autopilot",
+      diagnostics
+    }, "*");
+  }
+
   function describeMessage(data) {
     if (data == null) return { type: String(data) };
     if (data instanceof ArrayBuffer) return { type: "ArrayBuffer", bytes: data.byteLength };
@@ -134,6 +148,7 @@
     if (!data) return;
     bridgeDiagnostics.inboundMessages++;
     bridgeDiagnostics.lastInbound = describeMessage(data);
+    publishFrameDiagnostics();
     if (Array.isArray(data.trackParts)) {
       bridgeDiagnostics.geometryMessages++;
       captureTrackGeometry(data);
@@ -164,6 +179,7 @@
       const worker = new NativeWorker(...args);
       observedWorkers++;
       bridgeDiagnostics.workers = observedWorkers;
+      publishFrameDiagnostics();
       const nativePostMessage = worker.postMessage.bind(worker);
       worker.postMessage = function(message, transfer) {
         bridgeDiagnostics.outboundMessages++;
@@ -181,10 +197,12 @@
   window.addEventListener("message", event => {
     if (event.source !== window || event.data?.source !== "polytrack-autopilot" ||
         event.data?.type !== "PTAP_PAGE_BRIDGE_PING") return;
+    const diagnostics = { ...bridgeDiagnostics, href: location.href, frame: window === window.top ? "top" : "embedded" };
     window.postMessage({
       type: "PTAP_PAGE_BRIDGE_READY",
       source: "polytrack-autopilot",
-      diagnostics: { ...bridgeDiagnostics, href: location.href, frame: window === window.top ? "top" : "embedded" }
+      diagnostics
     }, "*");
+    publishFrameDiagnostics();
   });
 })();
