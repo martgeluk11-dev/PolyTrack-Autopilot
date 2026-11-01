@@ -19,8 +19,8 @@
       if (vertices.length < 9 || vertices.length % 9 !== 0 || !vertices.every(Number.isFinite)) continue;
       library[part.id] = {
         vertices,
-        detector: part.detector && Array.isArray(part.detector.center) && Array.isArray(part.detector.size)
-          ? { center: part.detector.center.map(Number), size: part.detector.size.map(Number), type: Number(part.detector.type) }
+        detector: part.detector && part.detector.center?.length >= 3 && part.detector.size?.length >= 3
+          ? { center: Array.from(part.detector.center, Number), size: Array.from(part.detector.size, Number), type: Number(part.detector.type) }
           : null
       };
     }
