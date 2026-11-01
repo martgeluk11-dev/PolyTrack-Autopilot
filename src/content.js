@@ -357,6 +357,7 @@
       if (state.recording) finishRecording();
       window.__PTAP_PLANNED_ROUTE__ = null;
       window.__PTAP_ROUTE_BUILDING__ = false;
+      window.__PTAP_ROUTE_ATTEMPTED__ = false;
       window.__PTAP_AUTOPILOT_ARMED__ = true;
       window.PTAPAutopilot.start();
       panel.querySelector("#ptap-autopilot").textContent = "Stop autopilot";
@@ -395,11 +396,12 @@
   }
 
   function buildPlannedRoute(carState) {
-    if (window.__PTAP_ROUTE_BUILDING__ || window.__PTAP_PLANNED_ROUTE__) return;
+    if (window.__PTAP_ROUTE_BUILDING__ || window.__PTAP_PLANNED_ROUTE__ || window.__PTAP_ROUTE_ATTEMPTED__) return;
     const decoded = window.__PTAP_LAST_DECODED_TRACK__;
     const geometry = window.__PTAP_TRACK_GEOMETRY__;
     if (!decoded?.track?.parts?.length || !geometry || !window.PTAPTrackPlanner) return;
     window.__PTAP_ROUTE_BUILDING__ = true;
+    window.__PTAP_ROUTE_ATTEMPTED__ = true;
     setStatus("Building 3D road surface and route…", "live");
     setTimeout(() => {
       try {
