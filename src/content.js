@@ -312,7 +312,7 @@
       };
     });
     return {
-      extension: "PolyTrack Autopilot 0.8.6",
+      extension: "PolyTrack Autopilot 0.8.7",
       autopilotController: Boolean(window.PTAPAutopilot),
       pageBridgeReady: Boolean(window.__PTAP_PAGE_BRIDGE_READY__),
       capturedGeometryPartTypes: Object.keys(window.__PTAP_TRACK_GEOMETRY__ || {}).length,
@@ -324,7 +324,7 @@
       routeBuildAttempted: Boolean(window.__PTAP_ROUTE_ATTEMPTED__),
       latestTelemetry: window.__PTAP_LAST_GAME_STATE__ || null,
       flightController: window.PTAPAutopilot?.status()?.latest || null,
-      telemetryBridge: "Reads simulation worker state buffers; geometry capture observes outbound track initialization messages",
+      telemetryBridge: "Relays iframe geometry and simulation telemetry to the top-frame controller",
       pageOrigin: location.origin,
       pageTitle: document.title,
       frame: window === window.top ? "top" : "embedded",
@@ -535,6 +535,7 @@
   }
 
   window.addEventListener("message", event => {
+    let message = event.data;
     if (event.data?.source === "polytrack-autopilot" &&
         event.data?.type === "PTAP_FRAME_BRIDGE_DIAGNOSTICS" &&
         event.source !== window && event.origin.endsWith(".itch.zone")) {
@@ -545,17 +546,48 @@
       }
       return;
     }
-    if (event.source !== window || event.origin !== location.origin) return;
-    if (event.data?.source !== "polytrack-autopilot") return;
-    if (event.data.type === "PTAP_PAGE_BRIDGE_READY") {
+
+    // Content scripts run in isolated worlds per frame. Relay game data from
+    // the itch.io iframe into the top frame where the control panel lives.
+    if (event.source !== window) {
+      if (!event.origin.endsWith(".itch.zone") ||
+          event.data?.source !== "polytrack-autopilot") return;
+      if (event.data.type === "PTAP_RELAY_TRACK_GEOMETRY") {
+        message = { ...event.data, type: "PTAP_PAGE_BRIDGE_TRACK_GEOMETRY" };
+      } else if (event.data.type === "PTAP_RELAY_TELEMETRY") {
+        message = { ...event.data, type: "PTAP_PAGE_BRIDGE_TELEMETRY" };
+      } else return;
+    } else if (event.origin !== location.origin) {
+      return;
+    }
+
+    if (message?.source !== "polytrack-autopilot") return;
+    if (message.type === "PTAP_PAGE_BRIDGE_TRACK_GEOMETRY" &&
+        window !== window.top) {
+      window.parent.postMessage({
+        type: "PTAP_RELAY_TRACK_GEOMETRY",
+        source: "polytrack-autopilot",
+        library: message.library
+      }, "*");
+    }
+    if (message.type === "PTAP_PAGE_BRIDGE_TELEMETRY" &&
+        window !== window.top) {
+      window.parent.postMessage({
+        type: "PTAP_RELAY_TELEMETRY",
+        source: "polytrack-autopilot",
+        state: message.state,
+        workerCount: message.workerCount
+      }, "*");
+    }
+    if (message.type === "PTAP_PAGE_BRIDGE_READY") {
       window.__PTAP_PAGE_BRIDGE_READY__ = true;
       window.__PTAP_BRIDGE_DIAGNOSTICS__ = event.data.diagnostics || null;
       return;
     }
-    if (event.data.type === "PTAP_PAGE_BRIDGE_TRACK_GEOMETRY") {
+    if (message.type === "PTAP_PAGE_BRIDGE_TRACK_GEOMETRY") {
       window.__PTAP_TRACK_GEOMETRY__ = {
         ...(window.__PTAP_TRACK_GEOMETRY__ || {}),
-        ...(event.data.library || {})
+        ...(message.library || {})
       };
       window.__PTAP_GEOMETRY_CACHE_READY__ = true;
       saveGeometryLibrary(window.__PTAP_TRACK_GEOMETRY__).catch(() => {});
@@ -564,9 +596,9 @@
       }
       return;
     }
-    if (event.data.type !== "PTAP_PAGE_BRIDGE_TELEMETRY") return;
+    if (message.type !== "PTAP_PAGE_BRIDGE_TELEMETRY") return;
 
-    const raw = event.data.state;
+    const raw = message.state;
     if (!raw) return;
     window.__PTAP_PAGE_BRIDGE_READY__ = true;
     const previous = window.__PTAP_LAST_GAME_STATE__;
