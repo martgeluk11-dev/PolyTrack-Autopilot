@@ -354,7 +354,8 @@
         airBrakeInput.value = "";
         return;
       }
-      if (["Shift", "Control", "Alt", " "].includes(event.key) || /^[a-z0-9]$/i.test(event.key)) {
+      const reserved = new Set(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "w", "a", "s", "d", "W", "A", "S", "D"]);
+      if (!reserved.has(event.key) && (["Shift", "Control", "Alt", " "].includes(event.key) || /^[a-z0-9]$/i.test(event.key))) {
         window.__PTAP_AIRBRAKE_KEY__ = event.key;
         airBrakeInput.value = event.key === " " ? "Space" : event.key;
       }
