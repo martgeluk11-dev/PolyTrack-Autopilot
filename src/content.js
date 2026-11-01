@@ -535,7 +535,10 @@
       return;
     }
     if (event.data.type === "PTAP_PAGE_BRIDGE_TRACK_GEOMETRY") {
-      window.__PTAP_TRACK_GEOMETRY__ = event.data.library || null;
+      window.__PTAP_TRACK_GEOMETRY__ = {
+        ...(window.__PTAP_TRACK_GEOMETRY__ || {}),
+        ...(event.data.library || {})
+      };
       window.__PTAP_GEOMETRY_CACHE_READY__ = true;
       saveGeometryLibrary(window.__PTAP_TRACK_GEOMETRY__).catch(() => {});
       if (window.__PTAP_AUTOPILOT_ARMED__ && window.__PTAP_LAST_DECODED_TRACK__ && window.__PTAP_LAST_GAME_STATE__) {
