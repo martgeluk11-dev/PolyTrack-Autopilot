@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "PolyTrack Autopilot",
-  "version": "0.6.0",
-  "description": "Analyze PolyTrack track geometry and plan a 3D practice racing route.",
+  "version": "0.7.0",
+  "description": "Analyze 3D track geometry and use experimental flight-aware practice driving.",
   "minimum_chrome_version": "116",
   "host_permissions": [
     "https://kodub.com/*",
