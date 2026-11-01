@@ -348,15 +348,19 @@
         setStatus("Analyze your PolyTrack trackcode first", "bad");
         return;
       }
-      if (!window.__PTAP_LAST_GAME_STATE__) {
-        setStatus("No live game telemetry yet · start a practice run", "bad");
-        return;
-      }
+      // A recorded/test lap is not required. Arm before starting the race;
+      // the controller will begin using live car telemetry as soon as the
+      // game publishes it.
       stopReplay();
       if (state.recording) finishRecording();
       window.PTAPAutopilot.start();
       panel.querySelector("#ptap-autopilot").textContent = "Stop autopilot";
-      setStatus("Controller armed · waiting for live car telemetry", "live");
+      setStatus(
+        window.__PTAP_LAST_GAME_STATE__
+          ? "Autopilot armed · waiting for the next car update"
+          : "Autopilot armed · start the race; no test lap needed",
+        "live"
+      );
     });
     panel.querySelector("#ptap-decode-track").addEventListener("click", analyzeTrackCode);
     panel.querySelector("#ptap-stop").addEventListener("click", () => {
