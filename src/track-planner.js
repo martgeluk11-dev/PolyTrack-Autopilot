@@ -130,8 +130,15 @@
 
   function detectorNodes(part, shape, nodes) {
     const detector=shape?.detector;
-    if(!detector?.center || !detector?.size) return [];
-    const center=worldPoint(detector.center,part);
+    const center=detector?.center ? worldPoint(detector.center,part) : [part.x*5,part.y*5,part.z*5];
+    if(!detector?.center || !detector?.size) {
+      let best=-1,bd=12;
+      for(let i=0;i<nodes.length;i++){
+        const d=dist3(nodes[i].p,center);
+        if(d<bd){bd=d;best=i;}
+      }
+      return best>=0?[best]:[];
+    }
     const half=detector.size.map(v=>Math.abs(v)*0.5+1.4);
     const result=[];
     for(let i=0;i<nodes.length;i++){
