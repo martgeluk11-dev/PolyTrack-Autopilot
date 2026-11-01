@@ -312,12 +312,13 @@
       };
     });
     return {
-      extension: "PolyTrack Autopilot 0.8.3",
+      extension: "PolyTrack Autopilot 0.8.4",
       autopilotController: Boolean(window.PTAPAutopilot),
       pageBridgeReady: Boolean(window.__PTAP_PAGE_BRIDGE_READY__),
       capturedGeometryPartTypes: Object.keys(window.__PTAP_TRACK_GEOMETRY__ || {}).length,
       geometryCacheAvailable: Boolean(window.__PTAP_GEOMETRY_CACHE_READY__),
       bridgeDiagnostics: window.__PTAP_BRIDGE_DIAGNOSTICS__ || null,
+      iframeBridgeDiagnostics: window.__PTAP_IFRAME_BRIDGE_DIAGNOSTICS__ || {},
       iframeSources: [...document.querySelectorAll("iframe")].map(frame => frame.src || "(same-origin, no src)").slice(0, 10),
       plannedRouteStats: window.__PTAP_ROUTE_STATS__ || null,
       routeBuildAttempted: Boolean(window.__PTAP_ROUTE_ATTEMPTED__),
@@ -534,6 +535,16 @@
   }
 
   window.addEventListener("message", event => {
+    if (event.data?.source === "polytrack-autopilot" &&
+        event.data?.type === "PTAP_FRAME_BRIDGE_DIAGNOSTICS" &&
+        event.source !== window && event.origin.endsWith(".itch.zone")) {
+      const frameInfo = event.data.diagnostics;
+      if (frameInfo?.href) {
+        window.__PTAP_IFRAME_BRIDGE_DIAGNOSTICS__ ||= {};
+        window.__PTAP_IFRAME_BRIDGE_DIAGNOSTICS__[frameInfo.href] = frameInfo;
+      }
+      return;
+    }
     if (event.source !== window || event.origin !== location.origin) return;
     if (event.data?.source !== "polytrack-autopilot") return;
     if (event.data.type === "PTAP_PAGE_BRIDGE_READY") {
