@@ -9,6 +9,27 @@
   let observedWorkers = 0;
   let lastSentAt = 0;
   let geometrySent = false;
+  const bridgeDiagnostics = window.__PTAP_BRIDGE_DIAGNOSTICS__ = {
+    workers: 0, inboundMessages: 0, outboundMessages: 0,
+    lastInbound: null, lastOutbound: null, geometryMessages: 0
+  };
+
+  function describeMessage(data) {
+    if (data == null) return { type: String(data) };
+    if (data instanceof ArrayBuffer) return { type: "ArrayBuffer", bytes: data.byteLength };
+    if (ArrayBuffer.isView(data)) return { type: data.constructor.name, bytes: data.byteLength };
+    if (typeof data !== "object") return { type: typeof data };
+    const keys = Object.keys(data).slice(0, 40);
+    const result = { type: Array.isArray(data) ? "array" : "object", keys };
+    if (Number.isFinite(data.messageType)) result.messageType = data.messageType;
+    if (Array.isArray(data.trackParts)) {
+      result.trackParts = data.trackParts.length;
+      result.trackPartKeys = data.trackParts[0] ? Object.keys(data.trackParts[0]).slice(0, 30) : [];
+    }
+    if (Array.isArray(data.carStateBuffers)) result.carStateBuffers = data.carStateBuffers.length;
+    if (data.buffer instanceof ArrayBuffer) result.bufferBytes = data.buffer.byteLength;
+    return result;
+  }
 
   function numericVertices(part) {
     const geometry = part?.geometry || part?.mesh?.geometry;
@@ -111,7 +132,12 @@
   function observeMessage(event) {
     const data = event?.data;
     if (!data) return;
-    if (Array.isArray(data.trackParts)) captureTrackGeometry(data);
+    bridgeDiagnostics.inboundMessages++;
+    bridgeDiagnostics.lastInbound = describeMessage(data);
+    if (Array.isArray(data.trackParts)) {
+      bridgeDiagnostics.geometryMessages++;
+      captureTrackGeometry(data);
+    }
     if (data.messageType !== UPDATE_RESULT || !Array.isArray(data.carStateBuffers)) return;
 
     const states = data.carStateBuffers.map(readState).filter(Boolean);
@@ -137,6 +163,13 @@
     function PTAPWorker(...args) {
       const worker = new NativeWorker(...args);
       observedWorkers++;
+      bridgeDiagnostics.workers = observedWorkers;
+      const nativePostMessage = worker.postMessage.bind(worker);
+      worker.postMessage = function(message, transfer) {
+        bridgeDiagnostics.outboundMessages++;
+        bridgeDiagnostics.lastOutbound = describeMessage(message);
+        return nativePostMessage(message, transfer);
+      };
       worker.addEventListener("message", observeMessage);
       return worker;
     }
