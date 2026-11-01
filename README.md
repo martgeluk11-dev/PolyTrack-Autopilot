@@ -4,11 +4,11 @@ An experimental Manifest V3 Chrome extension for PolyTrack.
 
 ## Current status
 
-**Early development — experimental live-telemetry autopilot for local practice.**
+**Early development — experimental geometry-based route planner and live-telemetry controller for local practice.**
 
 The first version provides:
 - a small in-game control panel;
-- a browser-side decoder for PolyTrack save/export trackcodes (including `PolyTrack2` exports);
+- a browser-side decoder for PolyTrack save/export trackcodes (including `PolyTrack2` exports);\n- capture of the game's native per-block triangle meshes and checkpoint/finish detector metadata from the simulation worker;\n- a 3D surface sampler and clearance-weighted graph search that attempts to construct a route from the start through ordered checkpoints to the finish;\n- a route-following controller with lookahead steering and curvature-based speed planning;
 - a main-world bridge that observes the PolyTrack simulation worker's 227-byte car-state buffers;
 - decoding of live car ID, frame count, speed, checkpoint index, position and orientation;
 - checkpoint target lookup from the decoded track using the documented 5-metre block scale;
@@ -25,7 +25,7 @@ The first version provides:
 
 The telemetry bridge targets the current PolyTrack simulation-worker protocol: it listens for `UpdateResult` messages and reads the 227-byte car-state buffer. The checkpoint position is resolved from the decoded track's checkpoint block origin (world coordinates = block coordinates × 5 metres); after the last checkpoint, the nearest finish-line block is used. This follows the published PolyTrack v6 simulation implementation, but the extension still needs a real in-browser validation run on the user's exact game build.
 
-It does **not** yet map every block ID to its full collision mesh, build a continuous drivable-surface model, or calculate a globally optimal racing line. The controller is an initial checkpoint-following baseline, not a trained fastest-line solver. The 0.6.3 worker protocol is present in the community's published worker bundle, but the extension has only been parser-tested with a synthetic state buffer so far; it has not yet been tested inside the actual game. If the worker protocol or track format differs, the controller should remain stopped rather than guessing.
+It now samples the game's actual triangle meshes instead of guessing block shapes from block IDs. The route builder connects compatible nearby surface samples, searches a clearance-weighted path through the checkpoint detectors, and resamples that path for the controller. It is **not yet a globally optimized racing line**: it does not currently model ballistic jump transitions, wheel/vehicle dynamics, boost surfaces, or air-brake inputs. Disconnected road sections therefore fail safely instead of inventing a jump. The game-worker message protocol and mesh payload still require in-browser validation on the user's exact game build. No real-game test has been performed yet.
 
 ## Install (developer mode)
 
@@ -37,7 +37,7 @@ It does **not** yet map every block ID to its full collision mesh, build a conti
 
 ## Use
 
-- **Track analyzer**: paste a PolyTrack export code (normally starting with `PolyTrack2`) and click **Analyze trackcode**. The extension decodes the map's packed block records locally; it does not require a test lap.
+- **Track analyzer**: paste a PolyTrack export code (normally starting with `PolyTrack2`) and click **Analyze trackcode**. The extension decodes the map's packed block records locally; it does not require a test lap. The game's simulation worker supplies the actual mesh library, which the planner uses to construct a 3D surface route.
 - **Copy decoded track JSON**: copies the decoded block positions, rotations, IDs, and metadata for further analysis.
 - **Record**: click, then drive a lap normally using the game's keyboard controls.
 - **Stop**: saves the recorded input timeline locally in extension storage.
