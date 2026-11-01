@@ -312,7 +312,7 @@
       };
     });
     return {
-      extension: "PolyTrack Autopilot 0.8.0",
+      extension: "PolyTrack Autopilot 0.8.1",
       autopilotController: Boolean(window.PTAPAutopilot),
       pageBridgeReady: Boolean(window.__PTAP_PAGE_BRIDGE_READY__),
       capturedGeometryPartTypes: Object.keys(window.__PTAP_TRACK_GEOMETRY__ || {}).length,
