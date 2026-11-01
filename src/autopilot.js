@@ -70,7 +70,10 @@
 
     const speed = Number(state.speed_kmh ?? state.speedKmh ?? 0);
     if (!Number.isFinite(speed) || speed < 0) return { valid: false, reason: "Invalid vehicle speed." };
-    const dt = clamp(Number(state.deltaSeconds || 1 / 60), 1 / 240, 0.1);
+    const sampleDelta = Number.isFinite(state.sampleTime) && Number.isFinite(previous.sampleTime)
+      ? (state.sampleTime - previous.sampleTime) / 1000
+      : Number(state.deltaSeconds || 1 / 60);
+    const dt = clamp(sampleDelta > 0 ? sampleDelta : 1 / 60, 1 / 240, 0.1);
     const priorPosition = readVector(previous.position);
     const routePoint = points[nearestIndex];
     let normal = normalize({ x: routePoint[3] || 0, y: routePoint[4] || 1, z: routePoint[5] || 0 }) || { x: 0, y: 1, z: 0 };
@@ -81,21 +84,29 @@
       (position.y-routePoint[1])*normal.y + (position.z-routePoint[2])*normal.z;
     let groundClearance = Number.isFinite(previous.groundClearance) ? previous.groundClearance : Math.max(0, surfaceHeight);
     const wasAirborne = Boolean(previous.airborne);
-    const airborne = wasAirborne
-      ? surfaceHeight > groundClearance + 0.95 || verticalSpeed > 2.2
-      : surfaceHeight > groundClearance + 1.65 && (verticalSpeed > 0.8 || surfaceHeight > groundClearance + 2.5);
+    const rawAirborne = wasAirborne
+      ? surfaceHeight > groundClearance + 0.82 || verticalSpeed > 2.5
+      : surfaceHeight > groundClearance + 1.25 && verticalSpeed > 1.0;
+    const airborneFrames = rawAirborne ? (previous.airborneFrames || 0) + 1 : 0;
+    const groundFrames = rawAirborne ? 0 : (previous.groundFrames || 0) + 1;
+    // Require consecutive samples to avoid flickering on uneven roads.
+    const airborne = wasAirborne ? groundFrames < 3 : airborneFrames >= 2;
     const landed = wasAirborne && !airborne;
     if (!airborne && Math.abs(verticalSpeed) < 1.8) {
-      groundClearance += clamp(surfaceHeight - groundClearance, -0.08, 0.08) * 0.08;
+      groundClearance += clamp(surfaceHeight - groundClearance, -0.12, 0.12) * 0.12;
     }
     const priorQ = previous.quaternion;
     let rotationRate = 0;
     if (priorQ && [priorQ.x, priorQ.y, priorQ.z, priorQ.w].every(Number.isFinite)) {
-      const qDot = Math.abs(q.x*priorQ.x + q.y*priorQ.y + q.z*priorQ.z + q.w*priorQ.w);
+      const qLength = Math.hypot(q.x,q.y,q.z,q.w) || 1;
+      const pLength = Math.hypot(priorQ.x,priorQ.y,priorQ.z,priorQ.w) || 1;
+      const qDot = Math.abs((q.x*priorQ.x + q.y*priorQ.y + q.z*priorQ.z + q.w*priorQ.w) / (qLength*pLength));
       rotationRate = 2 * Math.acos(clamp(qDot, -1, 1)) / dt;
     }
+    const tiltError = Math.acos(clamp(carUp.x*normal.x + carUp.y*normal.y + carUp.z*normal.z, -1, 1));
     const airBrakeKey = typeof state.airBrakeKey === "string" ? state.airBrakeKey : "";
-    const airBrake = Boolean(airBrakeKey && airborne && rotationRate > 1.25);
+    const airBrake = Boolean(airBrakeKey && airborne &&
+      (rotationRate > 3.0 || (rotationRate > 1.0 && tiltError > 0.95)));
     const lookDistance = clamp(speed / 3.6 * (airborne ? 0.38 : 0.55), 6, airborne ? 16 : 28);
     let targetIndex = nearestIndex, travelled = 0;
     while (targetIndex < points.length - 1 && travelled < lookDistance) {
@@ -140,7 +151,11 @@
       distanceAhead += Math.hypot(points[i+1][0]-points[i][0],points[i+1][1]-points[i][1],points[i+1][2]-points[i][2]);
     }
     targetSpeed = clamp(targetSpeed, 35, 230);
-    const brake = speed > targetSpeed + 8;
+    const sampleTime = Number.isFinite(state.sampleTime) ? state.sampleTime : performance.now();
+    const landingUntil = landed ? sampleTime + 450 : (previous.landingUntil || 0);
+    const landingRecovery = landingUntil > sampleTime;
+    if (landingRecovery) targetSpeed = Math.min(targetSpeed, 110);
+    const brake = !airborne && speed > targetSpeed + 8;
     const throttle = !brake && speed < targetSpeed + 4;
     const flightSteering = airborne ? clamp(steering, -0.28, 0.28) : steering;
     const flightThrottle = airborne ? false : throttle;
@@ -149,7 +164,8 @@
     return {
       valid: true, angle, steering: flightSteering, speedKmh: speed, targetSpeedKmh: targetSpeed,
       distance: nearestDistance, routeIndex: nearestIndex,
-      airborne, landed, surfaceHeight, verticalSpeed, rotationRate, airBrakeKey, groundClearance,
+      airborne, landed, airborneFrames, groundFrames, landingRecovery,
+      surfaceHeight, verticalSpeed, rotationRate, tiltError, airBrakeKey, groundClearance, landingUntil,
       inputs: {
         ArrowLeft: flightSteering < -0.12,
         ArrowRight: flightSteering > 0.12,
@@ -202,7 +218,11 @@
         angle: result.angle, routeIndex: result.routeIndex,
         position: carState.position, quaternion: carState.quaternion,
         airborne: result.airborne,
-        groundClearance: result.groundClearance
+        airborneFrames: result.airborneFrames,
+        groundFrames: result.groundFrames,
+        groundClearance: result.groundClearance,
+        landingUntil: result.landingUntil,
+        sampleTime: Number.isFinite(carState.sampleTime) ? carState.sampleTime : performance.now()
       };
       const controls = new Set([...KEYS, ...held, ...(result.airBrakeKey ? [result.airBrakeKey] : [])]);
       for (const key of controls) {
