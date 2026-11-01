@@ -9,7 +9,9 @@ An experimental Manifest V3 Chrome extension for PolyTrack.
 The first version provides:
 - a small in-game control panel;
 - a browser-side decoder for PolyTrack save/export trackcodes (including `PolyTrack2` exports);
-- capture of the game's native per-block triangle meshes and checkpoint/finish detector metadata from the simulation worker;\n- a 3D surface sampler and clearance-weighted graph search that attempts to construct a route from the start through ordered checkpoints to the finish;\n- a route-following controller with lookahead steering and curvature-based speed planning;
+- capture of the game's native per-block triangle meshes and checkpoint/finish detector metadata from the simulation worker;
+- a 3D surface sampler and clearance-weighted graph search that attempts to construct a route from the start through ordered checkpoints to the finish;
+- a route-following controller with lookahead steering and curvature-based speed planning;
 - estimated ground/airborne/landing phase detection using route-surface height and consecutive vehicle transforms;
 - reduced mid-air control corrections and optional configurable air-brake input when rotation becomes unstable;
 - a main-world bridge that observes the PolyTrack simulation worker's 227-byte car-state buffers;
