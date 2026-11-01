@@ -41,14 +41,48 @@
     })[key] || key;
   }
 
-  function dispatchKey(type, key) {
+  function dispatchLocalKey(type, key) {
     const target = findGameTarget();
     try { target.focus?.({ preventScroll: true }); } catch {}
-    const event = new KeyboardEvent(type, {
+    target.dispatchEvent(new KeyboardEvent(type, {
       key, code: keyCode(key), bubbles: true, cancelable: true,
       composed: true, view: window
-    });
-    target.dispatchEvent(event);
+    }));
+  }
+
+  function gameFrame() {
+    return [...document.querySelectorAll("iframe")]
+      .find(frame => /\.itch\.zone\//i.test(frame.src || ""));
+  }
+
+  function focusGame() {
+    if (window !== window.top) {
+      try { findGameTarget().focus?.({ preventScroll: true }); } catch {}
+      return;
+    }
+    const frame = gameFrame();
+    if (!frame) return;
+    try { frame.focus({ preventScroll: true }); } catch {}
+    frame.contentWindow?.postMessage({
+      source: "polytrack-autopilot", type: "PTAP_GAME_FOCUS"
+    }, "*");
+  }
+
+  function dispatchKey(type, key) {
+    if (window === window.top) {
+      const frame = gameFrame();
+      if (frame?.contentWindow) {
+        try { frame.focus({ preventScroll: true }); } catch {}
+        frame.contentWindow.postMessage({
+          source: "polytrack-autopilot", type: "PTAP_GAME_KEY",
+          eventType: type, key
+        }, "*");
+      } else {
+        dispatchLocalKey(type, key);
+      }
+    } else {
+      dispatchLocalKey(type, key);
+    }
     if (type === "keydown") state.replayHeld.add(key);
     else state.replayHeld.delete(key);
   }
@@ -210,6 +244,7 @@
       return;
     }
     state.replaying = true;
+    focusGame();
     const started = performance.now();
     setStatus("Replaying saved inputs…", "live");
     updateButtons();
@@ -312,7 +347,7 @@
       };
     });
     return {
-      extension: "PolyTrack Autopilot 0.8.8",
+      extension: "PolyTrack Autopilot 0.8.9",
       autopilotController: Boolean(window.PTAPAutopilot),
       pageBridgeReady: Boolean(window.__PTAP_PAGE_BRIDGE_READY__),
       capturedGeometryPartTypes: Object.keys(window.__PTAP_TRACK_GEOMETRY__ || {}).length,
@@ -436,6 +471,7 @@
       window.__PTAP_ROUTE_BUILDING__ = false;
       window.__PTAP_ROUTE_ATTEMPTED__ = false;
       window.__PTAP_AUTOPILOT_ARMED__ = true;
+      focusGame();
       window.PTAPAutopilot.start();
       panel.querySelector("#ptap-autopilot").textContent = "Stop autopilot";
       setStatus(
@@ -535,6 +571,20 @@
   }
 
   window.addEventListener("message", event => {
+    if (window !== window.top && event.source === window.parent &&
+        event.origin.endsWith(".itch.io") &&
+        event.data?.source === "polytrack-autopilot") {
+      if (event.data.type === "PTAP_GAME_FOCUS") {
+        try { findGameTarget().focus?.({ preventScroll: true }); } catch {}
+        return;
+      }
+      if (event.data.type === "PTAP_GAME_KEY" &&
+          (event.data.eventType === "keydown" || event.data.eventType === "keyup") &&
+          KEYS.has(event.data.key)) {
+        dispatchLocalKey(event.data.eventType, event.data.key);
+        return;
+      }
+    }
     let message = event.data;
     if (event.data?.source === "polytrack-autopilot" &&
         event.data?.type === "PTAP_FRAME_BRIDGE_DIAGNOSTICS" &&
@@ -668,23 +718,12 @@
     state.recordedHeld.clear();
   }
 
+  // Losing focus to the extension panel or another tab must not cancel an
+  // active replay/autopilot. Game input is relayed directly into the game iframe.
   window.addEventListener("blur", () => {
-    if (state.replaying) stopReplay();
-    if (window.PTAPAutopilot?.status().enabled) {
-      window.PTAPAutopilot.stop();
-      const button = document.querySelector("#ptap-autopilot");
-      if (button) button.textContent = "Start autopilot";
-    }
-    // Do not stop recording when the user clicks the extension panel.
     releaseRecordedKeys();
   });
   document.addEventListener("visibilitychange", () => {
-    if (document.hidden && state.replaying) stopReplay();
-    if (document.hidden && window.PTAPAutopilot?.status().enabled) {
-      window.PTAPAutopilot.stop();
-      const button = document.querySelector("#ptap-autopilot");
-      if (button) button.textContent = "Start autopilot";
-    }
     if (document.hidden) releaseRecordedKeys();
   });
 
