@@ -127,3 +127,17 @@
 #ptap-panel .ptap-track-success { color: #9ae6b4; font-size: 10px; font-weight: 700; letter-spacing: .08em; }
 #ptap-panel .ptap-track-list-title { color: #9ca3af; font-size: 9px; font-weight: 700; letter-spacing: .12em; margin-top: 5px; }
 #ptap-panel .ptap-muted { color: #9ca3af; font-size: 10px; line-height: 1.45; overflow-wrap: anywhere; }
+
+#ptap-panel #ptap-airbrake-key {
+  width: 100%;
+  margin: 5px 0 7px;
+  padding: 8px;
+  color: #f4f4f5;
+  background: rgba(0,0,0,.24);
+  border: 1px solid rgba(255,255,255,.13);
+  border-radius: 7px;
+  outline: none;
+  font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+  cursor: pointer;
+}
+#ptap-panel #ptap-airbrake-key:focus { border-color: rgba(154,230,180,.55); }
