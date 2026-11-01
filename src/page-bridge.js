@@ -52,7 +52,29 @@
     }
     if (Array.isArray(data.trackParts)) {
       result.trackParts = data.trackParts.length;
-      result.trackPartKeys = data.trackParts[0] ? Object.keys(data.trackParts[0]).slice(0, 30) : [];
+      const part = data.trackParts[0];
+      result.trackPartKeys = part ? Object.keys(part).slice(0, 30) : [];
+      if (part) {
+        const vertices = part.vertices;
+        result.trackPartSample = {
+          id: part.id,
+          verticesKind: Array.isArray(vertices) ? "array" :
+            ArrayBuffer.isView(vertices) ? vertices.constructor.name :
+            vertices && typeof vertices === "object" ? "object" : typeof vertices,
+          verticesLength: Number.isFinite(vertices?.length) ? vertices.length : null,
+          verticesKeys: vertices && typeof vertices === "object" && !Array.isArray(vertices)
+            ? Object.keys(vertices).slice(0, 20) : [],
+          verticesFirst: Array.isArray(vertices) || ArrayBuffer.isView(vertices)
+            ? Array.from(vertices).slice(0, 18).map(value =>
+                typeof value === "number" || typeof value === "string" ? value :
+                value && typeof value === "object" ? Object.keys(value).slice(0, 8) : typeof value)
+            : null,
+          detectorKind: part.detector == null ? String(part.detector) :
+            Array.isArray(part.detector) ? "array" : typeof part.detector,
+          detectorKeys: part.detector && typeof part.detector === "object"
+            ? Object.keys(part.detector).slice(0, 16) : []
+        };
+      }
     }
     if (Array.isArray(data.carStateBuffers)) result.carStateBuffers = data.carStateBuffers.length;
     if (data.buffer instanceof ArrayBuffer) result.bufferBytes = data.buffer.byteLength;
@@ -212,6 +234,10 @@
         workerInfo.outboundMessages++;
         workerInfo.lastOutbound = describeMessage(message);
         bridgeDiagnostics.lastOutbound = workerInfo.lastOutbound;
+        if (message?.messageType === 0 && Array.isArray(message.trackParts)) {
+          bridgeDiagnostics.geometryMessages++;
+          captureTrackGeometry(message);
+        }
         publishFrameDiagnostics();
         return nativePostMessage(message, transfer);
       };
