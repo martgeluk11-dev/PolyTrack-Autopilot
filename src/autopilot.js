@@ -166,7 +166,7 @@
       }
       if (now - lastTick < 12) return latest || result;
       lastTick = now;
-      previous = { angle: result.angle };
+      previous = { angle: result.angle, routeIndex: result.routeIndex };
       for (const key of KEYS) {
         const shouldHold = Boolean(result.inputs[key]);
         if (shouldHold !== held.has(key)) send(key, shouldHold);
