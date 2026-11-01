@@ -312,7 +312,7 @@
       };
     });
     return {
-      extension: "PolyTrack Autopilot 0.8.5",
+      extension: "PolyTrack Autopilot 0.8.6",
       autopilotController: Boolean(window.PTAPAutopilot),
       pageBridgeReady: Boolean(window.__PTAP_PAGE_BRIDGE_READY__),
       capturedGeometryPartTypes: Object.keys(window.__PTAP_TRACK_GEOMETRY__ || {}).length,
@@ -324,7 +324,7 @@
       routeBuildAttempted: Boolean(window.__PTAP_ROUTE_ATTEMPTED__),
       latestTelemetry: window.__PTAP_LAST_GAME_STATE__ || null,
       flightController: window.PTAPAutopilot?.status()?.latest || null,
-      telemetryBridge: "Reads 227-byte PolyTrack simulation worker state buffers; sample timing uses page timestamps",
+      telemetryBridge: "Reads simulation worker state buffers; geometry capture observes outbound track initialization messages",
       pageOrigin: location.origin,
       pageTitle: document.title,
       frame: window === window.top ? "top" : "embedded",
