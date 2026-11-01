@@ -4,11 +4,13 @@ An experimental Manifest V3 Chrome extension for PolyTrack.
 
 ## Current status
 
-**Early development — experimental geometry-based route planner and live-telemetry controller for local practice.**
+**Early development — experimental 3D route planner with estimated flight-phase handling for local practice.**
 
 The first version provides:
 - a small in-game control panel;
 - a browser-side decoder for PolyTrack save/export trackcodes (including `PolyTrack2` exports);\n- capture of the game's native per-block triangle meshes and checkpoint/finish detector metadata from the simulation worker;\n- a 3D surface sampler and clearance-weighted graph search that attempts to construct a route from the start through ordered checkpoints to the finish;\n- a route-following controller with lookahead steering and curvature-based speed planning;
+- estimated ground/airborne/landing phase detection using route-surface height and consecutive vehicle transforms;
+- reduced mid-air control corrections and optional configurable air-brake input when rotation becomes unstable;
 - a main-world bridge that observes the PolyTrack simulation worker's 227-byte car-state buffers;
 - decoding of live car ID, frame count, speed, checkpoint index, position and orientation;
 - checkpoint target lookup from the decoded track using the documented 5-metre block scale;
@@ -25,7 +27,7 @@ The first version provides:
 
 The telemetry bridge targets the current PolyTrack simulation-worker protocol: it listens for `UpdateResult` messages and reads the 227-byte car-state buffer. The checkpoint position is resolved from the decoded track's checkpoint block origin (world coordinates = block coordinates × 5 metres); after the last checkpoint, the nearest finish-line block is used. This follows the published PolyTrack v6 simulation implementation, but the extension still needs a real in-browser validation run on the user's exact game build.
 
-It now samples the game's actual triangle meshes instead of guessing block shapes from block IDs. The route builder connects compatible nearby surface samples, searches a clearance-weighted path through the checkpoint detectors, and resamples that path for the controller. It is **not yet a globally optimized racing line**: it does not currently model ballistic jump transitions, wheel/vehicle dynamics, boost surfaces, or air-brake inputs. Disconnected road sections therefore fail safely instead of inventing a jump. The game-worker message protocol and mesh payload still require in-browser validation on the user's exact game build. No real-game test has been performed yet.
+It now samples the game's actual triangle meshes instead of guessing block shapes from block IDs. The route builder connects compatible nearby surface samples, searches a clearance-weighted path through the checkpoint detectors, and resamples that path for the controller. It is **not yet a globally optimized racing line** and does not yet plan ballistic jump links across disconnected road surfaces. The controller now estimates takeoff/flight/landing from the car's position relative to the sampled road surface and successive orientation samples. During flight it reduces steering/throttle corrections and can press a user-configured air-brake key when estimated rotation becomes unstable. This is an estimate, not true wheel-contact telemetry; the air-brake key must be selected to match the active game's controls. Vehicle dynamics, boost surfaces and jump trajectory optimization are still missing. The worker message protocol and mesh payload still require in-browser validation on the user's exact game build. No real-game test has been performed yet.
 
 ## Install (developer mode)
 
@@ -42,6 +44,7 @@ It now samples the game's actual triangle meshes instead of guessing block shape
 - **Record**: click, then drive a lap normally using the game's keyboard controls.
 - **Stop**: saves the recorded input timeline locally in extension storage.
 - **Replay**: replays the saved key timeline from the beginning.
+- **Flight control**: click the air-brake key field and press the key assigned to air brake in your PolyTrack settings. Leave it empty to disable automatic air-brake input. Press Escape while focused to clear it.
 - **Stop bot**: immediately releases all held keys.
 - **Diagnostics**: copies frame/canvas information and the current page URL (without cookies or account data).
 
