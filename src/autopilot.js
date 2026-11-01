@@ -186,16 +186,27 @@
 
     function send(key, down) {
       const type = down ? "keydown" : "keyup";
-      const event = new KeyboardEvent(type, {
-        key, code: keyCode(key), bubbles: true, cancelable: true, composed: true
-      });
-      const canvas = [...document.querySelectorAll("canvas")]
-        .map(el => ({ el, r: el.getBoundingClientRect() }))
-        .filter(x => x.r.width > 200 && x.r.height > 120)
-        .sort((a, b) => b.r.width * b.r.height - a.r.width * a.r.height)[0]?.el;
-      const target = canvas || document.activeElement || document.body;
-      try { target.focus?.({ preventScroll: true }); } catch {}
-      target.dispatchEvent(event);
+      if (window === window.top) {
+        const frame = [...document.querySelectorAll("iframe")]
+          .find(el => /\.itch\.zone\//i.test(el.src || ""));
+        if (frame?.contentWindow) {
+          try { frame.focus({ preventScroll: true }); } catch {}
+          frame.contentWindow.postMessage({
+            source: "polytrack-autopilot", type: "PTAP_GAME_KEY",
+            eventType: type, key
+          }, "*");
+        }
+      } else {
+        const canvas = [...document.querySelectorAll("canvas")]
+          .map(el => ({ el, r: el.getBoundingClientRect() }))
+          .filter(x => x.r.width > 200 && x.r.height > 120)
+          .sort((a, b) => b.r.width * b.r.height - a.r.width * a.r.height)[0]?.el;
+        const target = canvas || document.activeElement || document.body;
+        try { target.focus?.({ preventScroll: true }); } catch {}
+        target.dispatchEvent(new KeyboardEvent(type, {
+          key, code: keyCode(key), bubbles: true, cancelable: true, composed: true
+        }));
+      }
       if (down) held.add(key); else held.delete(key);
     }
 
