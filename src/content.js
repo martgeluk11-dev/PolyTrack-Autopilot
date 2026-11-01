@@ -91,10 +91,13 @@
 
   function openDb() {
     return new Promise((resolve, reject) => {
-      const request = indexedDB.open("pt-autopilot", 1);
+      const request = indexedDB.open("pt-autopilot", 2);
       request.onupgradeneeded = () => {
         if (!request.result.objectStoreNames.contains("recordings")) {
           request.result.createObjectStore("recordings");
+        }
+        if (!request.result.objectStoreNames.contains("geometry")) {
+          request.result.createObjectStore("geometry");
         }
       };
       request.onsuccess = () => resolve(request.result);
@@ -133,6 +136,28 @@
     return new Promise((resolve, reject) => {
       const tx = db.transaction("recordings", "readonly");
       const get = tx.objectStore("recordings").get("latest");
+      get.onsuccess = () => { const value = get.result || null; db.close(); resolve(value); };
+      get.onerror = () => { db.close(); reject(get.error); };
+    });
+  } 
+
+  async function saveGeometryLibrary(library) {
+    if (!library || !Object.keys(library).length) return;
+    const db = await openDb();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction("geometry", "readwrite");
+      tx.objectStore("geometry").put(library, "polytrack-block-library");
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+  }
+
+  async function loadGeometryLibrary() {
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction("geometry", "readonly");
+      const get = tx.objectStore("geometry").get("polytrack-block-library");
       get.onsuccess = () => { const value = get.result || null; db.close(); resolve(value); };
       get.onerror = () => { db.close(); reject(get.error); };
     });
@@ -291,6 +316,7 @@
       autopilotController: Boolean(window.PTAPAutopilot),
       pageBridgeReady: Boolean(window.__PTAP_PAGE_BRIDGE_READY__),
       capturedGeometryPartTypes: Object.keys(window.__PTAP_TRACK_GEOMETRY__ || {}).length,
+      geometryCacheAvailable: Boolean(window.__PTAP_GEOMETRY_CACHE_READY__),
       plannedRouteStats: window.__PTAP_ROUTE_STATS__ || null,
       routeBuildAttempted: Boolean(window.__PTAP_ROUTE_ATTEMPTED__),
       latestTelemetry: window.__PTAP_LAST_GAME_STATE__ || null,
@@ -346,6 +372,16 @@
       </div>`;
     document.documentElement.appendChild(panel);
 
+    loadGeometryLibrary().then(library => {
+      if (!library || window.__PTAP_TRACK_GEOMETRY__) return;
+      window.__PTAP_TRACK_GEOMETRY__ = library;
+      window.__PTAP_GEOMETRY_CACHE_READY__ = true;
+      if (window.__PTAP_AUTOPILOT_ARMED__ && window.__PTAP_LAST_GAME_STATE__) {
+        buildPlannedRoute(window.__PTAP_LAST_GAME_STATE__);
+      }
+      setStatus("Cached 3D block geometry ready · imported tracks can be planned without a test lap", "good");
+    }).catch(() => {});
+
     const airBrakeInput = panel.querySelector("#ptap-airbrake-key");
     airBrakeInput.addEventListener("keydown", event => {
       event.preventDefault();
@@ -397,8 +433,8 @@
       panel.querySelector("#ptap-autopilot").textContent = "Stop autopilot";
       setStatus(
         window.__PTAP_TRACK_GEOMETRY__
-          ? "Autopilot armed · building route from 3D track geometry"
-          : "Autopilot armed · waiting for game track geometry (no test lap needed)",
+          ? "Autopilot armed · building route from trackcode + cached 3D geometry"
+          : "Autopilot armed · waiting for the game's block library (no test lap needed)",
         "live"
       );
       if (window.__PTAP_LAST_GAME_STATE__) buildPlannedRoute(window.__PTAP_LAST_GAME_STATE__);
@@ -500,6 +536,8 @@
     }
     if (event.data.type === "PTAP_PAGE_BRIDGE_TRACK_GEOMETRY") {
       window.__PTAP_TRACK_GEOMETRY__ = event.data.library || null;
+      window.__PTAP_GEOMETRY_CACHE_READY__ = true;
+      saveGeometryLibrary(window.__PTAP_TRACK_GEOMETRY__).catch(() => {});
       if (window.__PTAP_AUTOPILOT_ARMED__ && window.__PTAP_LAST_DECODED_TRACK__ && window.__PTAP_LAST_GAME_STATE__) {
         buildPlannedRoute(window.__PTAP_LAST_GAME_STATE__);
       }
