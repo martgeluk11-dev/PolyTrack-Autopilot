@@ -4,7 +4,7 @@
   // Closed-loop steering controller. It deliberately accepts measured game
   // state instead of guessing car position from the rendered canvas.
   const KEYS = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
-  const KEY_CODES = { " ": "Space", Shift: "Shift", Control: "ControlLeft", Alt: "AltLeft", Enter: "Enter", Tab: "Tab" };
+  const KEY_CODES = { " ": "Space", Shift: "ShiftLeft", Control: "ControlLeft", Alt: "AltLeft", Enter: "Enter", Tab: "Tab" };
   const keyCode = key => KEY_CODES[key] || (/^[a-z]$/i.test(key) ? "Key" + key.toUpperCase() : key);
   const FORWARD_LOCAL = { x: 0, y: 0, z: -1 };
 
@@ -76,9 +76,10 @@
     const dt = clamp(sampleDelta > 0 ? sampleDelta : 1 / 60, 1 / 240, 0.1);
     const priorPosition = readVector(previous.position);
     const routePoint = points[nearestIndex];
-    let normal = normalize({ x: routePoint[3] || 0, y: routePoint[4] || 1, z: routePoint[5] || 0 }) || { x: 0, y: 1, z: 0 };
+    // Keep the mesh normal's orientation: flipping it toward car-up would
+    // hide inverted/sideways landings and make the tilt estimate meaningless.
+    const normal = normalize({ x: routePoint[3] || 0, y: routePoint[4] || 1, z: routePoint[5] || 0 }) || { x: 0, y: 1, z: 0 };
     const carUp = rotateByQuaternion({ x: 0, y: 1, z: 0 }, q);
-    if (normal.x*carUp.x + normal.y*carUp.y + normal.z*carUp.z < 0) normal = { x: -normal.x, y: -normal.y, z: -normal.z };
     const verticalSpeed = priorPosition ? ((position.x-priorPosition.x)*normal.x + (position.y-priorPosition.y)*normal.y + (position.z-priorPosition.z)*normal.z) / dt : 0;
     const surfaceHeight = (position.x-routePoint[0])*normal.x +
       (position.y-routePoint[1])*normal.y + (position.z-routePoint[2])*normal.z;
@@ -106,7 +107,7 @@
     const tiltError = Math.acos(clamp(carUp.x*normal.x + carUp.y*normal.y + carUp.z*normal.z, -1, 1));
     const airBrakeKey = typeof state.airBrakeKey === "string" ? state.airBrakeKey : "";
     const airBrake = Boolean(airBrakeKey && airborne &&
-      (rotationRate > 3.0 || (rotationRate > 1.0 && tiltError > 0.95)));
+      (rotationRate > 3.0 || tiltError > 1.4 || (rotationRate > 1.0 && tiltError > 0.95)));
     const lookDistance = clamp(speed / 3.6 * (airborne ? 0.38 : 0.55), 6, airborne ? 16 : 28);
     let targetIndex = nearestIndex, travelled = 0;
     while (targetIndex < points.length - 1 && travelled < lookDistance) {
