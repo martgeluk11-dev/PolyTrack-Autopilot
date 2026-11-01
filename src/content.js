@@ -239,7 +239,7 @@
         ${blockRows}
         ${report.partCounts.length > 14 ? `<div class="ptap-muted">+${report.partCounts.length - 14} more block IDs</div>` : ""}
         <button id="ptap-copy-track-json" class="ptap-secondary" type="button">Copy decoded track JSON</button>
-        <div class="ptap-muted">Geometry data decoded. Block shapes and driveable surfaces still need mapping before a racing line can be calculated.</div>`;
+        <div class="ptap-muted">Native mesh data is used for 3D route generation when the game is loaded. This is a feasible surface route, not yet a globally optimized fastest lap.</div>`;
       output.querySelector("#ptap-copy-track-json").addEventListener("click", async () => {
         try {
           await navigator.clipboard.writeText(JSON.stringify(decoded, null, 2));
@@ -247,7 +247,12 @@
         } catch { setStatus("Clipboard unavailable", "bad"); }
       });
       window.__PTAP_LAST_DECODED_TRACK__ = decoded;
+      window.__PTAP_PLANNED_ROUTE__ = null;
+      window.__PTAP_ROUTE_ATTEMPTED__ = false;
       setStatus("Track decoded · " + report.totalParts + " blocks found", "good");
+      if (window.__PTAP_AUTOPILOT_ARMED__ && window.__PTAP_LAST_GAME_STATE__) {
+        buildPlannedRoute(window.__PTAP_LAST_GAME_STATE__);
+      }
     } catch (error) {
       const message = error?.message || "Trackcode could not be decoded.";
       output.textContent = message;
