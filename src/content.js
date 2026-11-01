@@ -374,8 +374,12 @@
 
     loadGeometryLibrary().then(library => {
       if (!library || window.__PTAP_TRACK_GEOMETRY__) return;
-      window.__PTAP_TRACK_GEOMETRY__ = library;
+      window.__PTAP_TRACK_GEOMETRY__ = {
+        ...library,
+        ...(window.__PTAP_TRACK_GEOMETRY__ || {})
+      };
       window.__PTAP_GEOMETRY_CACHE_READY__ = true;
+      saveGeometryLibrary(window.__PTAP_TRACK_GEOMETRY__).catch(() => {});
       if (window.__PTAP_AUTOPILOT_ARMED__ && window.__PTAP_LAST_GAME_STATE__) {
         buildPlannedRoute(window.__PTAP_LAST_GAME_STATE__);
       }
