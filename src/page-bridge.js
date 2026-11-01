@@ -9,6 +9,7 @@
   let observedWorkers = 0;
   let lastSentAt = 0;
   let geometrySent = false;
+  let capturedGeometryLibrary = null;
   const bridgeDiagnostics = window.__PTAP_BRIDGE_DIAGNOSTICS__ = {
     workers: 0, inboundMessages: 0, outboundMessages: 0,
     lastInbound: null, lastOutbound: null, geometryMessages: 0,
@@ -127,6 +128,7 @@
     }
     if (!Object.keys(library).length) return;
     geometrySent = true;
+    capturedGeometryLibrary = library;
     window.postMessage({
       type: "PTAP_PAGE_BRIDGE_TRACK_GEOMETRY",
       source: "polytrack-autopilot",
@@ -262,6 +264,15 @@
       source: "polytrack-autopilot",
       diagnostics
     }, "*");
+    // The worker can initialize before the document_idle content script
+    // installs its message listener. Replay the captured library on every ping.
+    if (capturedGeometryLibrary) {
+      window.postMessage({
+        type: "PTAP_PAGE_BRIDGE_TRACK_GEOMETRY",
+        source: "polytrack-autopilot",
+        library: capturedGeometryLibrary
+      }, "*");
+    }
     publishFrameDiagnostics();
   });
 })();
