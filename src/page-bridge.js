@@ -11,7 +11,8 @@
   let geometrySent = false;
   const bridgeDiagnostics = window.__PTAP_BRIDGE_DIAGNOSTICS__ = {
     workers: 0, inboundMessages: 0, outboundMessages: 0,
-    lastInbound: null, lastOutbound: null, geometryMessages: 0
+    lastInbound: null, lastOutbound: null, geometryMessages: 0,
+    workerDetails: []
   };
 
   function publishFrameDiagnostics() {
@@ -35,7 +36,20 @@
     if (typeof data !== "object") return { type: typeof data };
     const keys = Object.keys(data).slice(0, 40);
     const result = { type: Array.isArray(data) ? "array" : "object", keys };
-    if (Number.isFinite(data.messageType)) result.messageType = data.messageType;
+    for (const key of ["type", "id", "messageType"]) {
+      const value = data[key];
+      if (["string", "number", "boolean"].includes(typeof value)) result[key] = value;
+    }
+    if (data.geometry && typeof data.geometry === "object") {
+      result.geometry = {
+        kind: Array.isArray(data.geometry) ? "array" : "object",
+        keys: Object.keys(data.geometry).slice(0, 24),
+        length: Number.isFinite(data.geometry.length) ? data.geometry.length : undefined
+      };
+    }
+    if (data.taskConfig && typeof data.taskConfig === "object") {
+      result.taskConfigKeys = Object.keys(data.taskConfig).slice(0, 24);
+    }
     if (Array.isArray(data.trackParts)) {
       result.trackParts = data.trackParts.length;
       result.trackPartKeys = data.trackParts[0] ? Object.keys(data.trackParts[0]).slice(0, 30) : [];
@@ -179,14 +193,33 @@
       const worker = new NativeWorker(...args);
       observedWorkers++;
       bridgeDiagnostics.workers = observedWorkers;
+      let workerURL = "";
+      try { workerURL = new URL(String(args[0]), document.baseURI).href; }
+      catch { workerURL = String(args[0] || "unknown"); }
+      const workerInfo = {
+        index: observedWorkers,
+        url: workerURL,
+        inboundMessages: 0,
+        outboundMessages: 0,
+        lastInbound: null,
+        lastOutbound: null
+      };
+      bridgeDiagnostics.workerDetails.push(workerInfo);
       publishFrameDiagnostics();
       const nativePostMessage = worker.postMessage.bind(worker);
       worker.postMessage = function(message, transfer) {
         bridgeDiagnostics.outboundMessages++;
-        bridgeDiagnostics.lastOutbound = describeMessage(message);
+        workerInfo.outboundMessages++;
+        workerInfo.lastOutbound = describeMessage(message);
+        bridgeDiagnostics.lastOutbound = workerInfo.lastOutbound;
+        publishFrameDiagnostics();
         return nativePostMessage(message, transfer);
       };
-      worker.addEventListener("message", observeMessage);
+      worker.addEventListener("message", event => {
+        workerInfo.inboundMessages++;
+        workerInfo.lastInbound = describeMessage(event?.data);
+        observeMessage(event);
+      });
       return worker;
     }
     PTAPWorker.prototype = NativeWorker.prototype;
