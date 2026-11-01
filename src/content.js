@@ -287,14 +287,15 @@
       };
     });
     return {
-      extension: "PolyTrack Autopilot 0.7.0",
+      extension: "PolyTrack Autopilot 0.8.0",
       autopilotController: Boolean(window.PTAPAutopilot),
       pageBridgeReady: Boolean(window.__PTAP_PAGE_BRIDGE_READY__),
       capturedGeometryPartTypes: Object.keys(window.__PTAP_TRACK_GEOMETRY__ || {}).length,
       plannedRouteStats: window.__PTAP_ROUTE_STATS__ || null,
       routeBuildAttempted: Boolean(window.__PTAP_ROUTE_ATTEMPTED__),
       latestTelemetry: window.__PTAP_LAST_GAME_STATE__ || null,
-      telemetryBridge: "Reads 227-byte PolyTrack simulation worker state buffers",
+      flightController: window.PTAPAutopilot?.status()?.latest || null,
+      telemetryBridge: "Reads 227-byte PolyTrack simulation worker state buffers; sample timing uses page timestamps",
       pageOrigin: location.origin,
       pageTitle: document.title,
       frame: window === window.top ? "top" : "embedded",
@@ -517,10 +518,11 @@
       next_checkpoint_index: raw.nextCheckpointIndex,
       position: raw.position,
       quaternion: { x: raw.quaternion[0], y: raw.quaternion[1], z: raw.quaternion[2], w: raw.quaternion[3] },
-      hasStarted: raw.hasStarted
+      hasStarted: raw.hasStarted,
+      sampleTime: performance.now()
     };
-    if (previous && previous.carId === state.carId && state.frames > previous.frames) {
-      state.deltaSeconds = Math.min(0.1, (state.frames - previous.frames) / 1000);
+    if (previous && previous.carId === state.carId && previous.sampleTime) {
+      state.deltaSeconds = Math.min(0.1, (state.sampleTime - previous.sampleTime) / 1000);
     }
     window.__PTAP_LAST_GAME_STATE__ = state;
 
@@ -540,7 +542,8 @@
     const result = window.PTAPAutopilot.update(state);
     if (result?.valid) {
       const direction = Math.round(result.angle * 180 / Math.PI);
-      setStatus("Autopilot · " + (result.airborne ? "AIRBORNE" : result.landed ? "LANDED" : "GROUND") + " · " + result.speedKmh.toFixed(0) + " km/h · target " + result.targetSpeedKmh.toFixed(0) + " · " + direction + "°" + (result.airBrakeKey && result.airborne ? " · airbrake " + (result.inputs[result.airBrakeKey] ? "ON" : "ready") : ""), "live");
+      const phase = result.airborne ? "AIRBORNE" : result.landed ? "LANDED" : result.landingRecovery ? "SETTLING" : "GROUND";
+      setStatus("Autopilot · " + phase + " · " + result.speedKmh.toFixed(0) + " km/h · target " + result.targetSpeedKmh.toFixed(0) + " · " + direction + "°" + (result.airBrakeKey && result.airborne ? " · airbrake " + (result.inputs[result.airBrakeKey] ? "ON" : "ready") : ""), "live");
     } else if (result?.reason) setStatus("Autopilot paused · " + result.reason, "bad");
   });
 
