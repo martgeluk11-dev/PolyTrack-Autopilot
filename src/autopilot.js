@@ -72,9 +72,9 @@
     if (!Number.isFinite(speed) || speed < 0) return { valid: false, reason: "Invalid vehicle speed." };
     const dt = clamp(Number(state.deltaSeconds || 1 / 60), 1 / 240, 0.1);
     const priorPosition = readVector(previous.position);
-    const verticalSpeed = priorPosition ? (position.y - priorPosition.y) / dt : 0;
     const routePoint = points[nearestIndex];
     const normal = normalize({ x: routePoint[3] || 0, y: routePoint[4] || 1, z: routePoint[5] || 0 }) || { x: 0, y: 1, z: 0 };
+    const verticalSpeed = priorPosition ? ((position.x-priorPosition.x)*normal.x + (position.y-priorPosition.y)*normal.y + (position.z-priorPosition.z)*normal.z) / dt : 0;
     const surfaceHeight = (position.x-routePoint[0])*normal.x +
       (position.y-routePoint[1])*normal.y + (position.z-routePoint[2])*normal.z;
     let groundClearance = Number.isFinite(previous.groundClearance) ? previous.groundClearance : Math.max(0, surfaceHeight);
@@ -92,7 +92,7 @@
       const qDot = Math.abs(q.x*priorQ.x + q.y*priorQ.y + q.z*priorQ.z + q.w*priorQ.w);
       rotationRate = 2 * Math.acos(clamp(qDot, -1, 1)) / dt;
     }
-    const airBrakeKey = typeof state.airBrakeKey === "string" ? state.airBrakeKey.trim() : "";
+    const airBrakeKey = typeof state.airBrakeKey === "string" ? state.airBrakeKey : "";
     const airBrake = Boolean(airBrakeKey && airborne && rotationRate > 1.25);
     const lookDistance = clamp(speed / 3.6 * (airborne ? 0.38 : 0.55), 6, airborne ? 16 : 28);
     let targetIndex = nearestIndex, travelled = 0;
@@ -147,7 +147,7 @@
     return {
       valid: true, angle, steering: flightSteering, speedKmh: speed, targetSpeedKmh: targetSpeed,
       distance: nearestDistance, routeIndex: nearestIndex,
-      airborne, landed, surfaceHeight, verticalSpeed, rotationRate, airBrakeKey,
+      airborne, landed, surfaceHeight, verticalSpeed, rotationRate, airBrakeKey, groundClearance,
       inputs: {
         ArrowLeft: flightSteering < -0.12,
         ArrowRight: flightSteering > 0.12,
@@ -200,9 +200,9 @@
         angle: result.angle, routeIndex: result.routeIndex,
         position: carState.position, quaternion: carState.quaternion,
         airborne: result.airborne,
-        groundClearance: previous.groundClearance ?? Math.max(0, result.surfaceHeight)
+        groundClearance: result.groundClearance
       };
-      const controls = new Set([...KEYS, ...(result.airBrakeKey ? [result.airBrakeKey] : [])]);
+      const controls = new Set([...KEYS, ...held, ...(result.airBrakeKey ? [result.airBrakeKey] : [])]);
       for (const key of controls) {
         const shouldHold = Boolean(result.inputs[key]);
         if (shouldHold !== held.has(key)) send(key, shouldHold);
