@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "PolyTrack Autopilot",
-  "version": "0.5.0",
-  "description": "Decode PolyTrack tracks, read local simulation telemetry, and experiment with checkpoint-following autopilot in practice.",
+  "version": "0.6.0",
+  "description": "Analyze PolyTrack track geometry and plan a 3D practice racing route.",
   "minimum_chrome_version": "116",
   "host_permissions": [
     "https://kodub.com/*",
@@ -18,7 +18,9 @@
         "https://*.itch.zone/*",
         "https://*.itch.io/*"
       ],
-      "js": ["src/page-bridge.js"],
+      "js": [
+        "src/page-bridge.js"
+      ],
       "run_at": "document_start",
       "world": "MAIN",
       "all_frames": true
@@ -33,6 +35,7 @@
       "js": [
         "src/analysis.js",
         "src/track-decoder.js",
+        "src/track-planner.js",
         "src/autopilot.js",
         "src/content.js"
       ],
