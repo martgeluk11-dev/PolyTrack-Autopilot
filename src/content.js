@@ -287,7 +287,7 @@
       };
     });
     return {
-      extension: "PolyTrack Autopilot 0.6.0",
+      extension: "PolyTrack Autopilot 0.7.0",
       autopilotController: Boolean(window.PTAPAutopilot),
       pageBridgeReady: Boolean(window.__PTAP_PAGE_BRIDGE_READY__),
       capturedGeometryPartTypes: Object.keys(window.__PTAP_TRACK_GEOMETRY__ || {}).length,
@@ -331,6 +331,12 @@
           <div id="ptap-track-result">Nog geen track geanalyseerd.</div>
         </div>
         <div class="ptap-analysis-wrap">
+          <div class="ptap-section-title">FLIGHT CONTROL</div>
+          <label class="ptap-muted" for="ptap-airbrake-key">Air-brake key · press the key used in your game settings</label>
+          <input id="ptap-airbrake-key" type="text" readonly placeholder="Click here, then press your air-brake key" />
+          <div class="ptap-muted">Flight detection is estimated from 3D position and rotation. Airbrake activates only when airborne rotation becomes unstable.</div>
+        </div>
+        <div class="ptap-analysis-wrap">
           <div class="ptap-section-title">LAST RUN · INPUT ANALYSIS</div>
           <div id="ptap-analysis">Record a practice lap to see its input breakdown.</div>
         </div>
@@ -339,6 +345,24 @@
       </div>`;
     document.documentElement.appendChild(panel);
 
+    const airBrakeInput = panel.querySelector("#ptap-airbrake-key");
+    airBrakeInput.addEventListener("keydown", event => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.key === "Escape" || event.key === "Backspace" || event.key === "Delete") {
+        window.__PTAP_AIRBRAKE_KEY__ = "";
+        airBrakeInput.value = "";
+        return;
+      }
+      if (["Shift", "Control", "Alt", " "].includes(event.key) || /^[a-z0-9]$/i.test(event.key)) {
+        window.__PTAP_AIRBRAKE_KEY__ = event.key;
+        airBrakeInput.value = event.key === " " ? "Space" : event.key;
+      }
+    });
+    airBrakeInput.addEventListener("click", () => {
+      airBrakeInput.value = "";
+      airBrakeInput.placeholder = "Press a key (Esc to clear)";
+    });
     panel.querySelector("#ptap-record").addEventListener("click", () => {
       state.recording ? finishRecording() : startRecording();
     });
@@ -511,10 +535,11 @@
     }
 
     state.route = window.__PTAP_PLANNED_ROUTE__;
+    state.airBrakeKey = window.__PTAP_AIRBRAKE_KEY__ || "";
     const result = window.PTAPAutopilot.update(state);
     if (result?.valid) {
       const direction = Math.round(result.angle * 180 / Math.PI);
-      setStatus("Autopilot · " + result.speedKmh.toFixed(0) + " km/h · target " + result.targetSpeedKmh.toFixed(0) + " · " + direction + "°", "live");
+      setStatus("Autopilot · " + (result.airborne ? "AIRBORNE" : result.landed ? "LANDED" : "GROUND") + " · " + result.speedKmh.toFixed(0) + " km/h · target " + result.targetSpeedKmh.toFixed(0) + " · " + direction + "°" + (result.airBrakeKey && result.airborne ? " · airbrake " + (result.inputs[result.airBrakeKey] ? "ON" : "ready") : ""), "live");
     } else if (result?.reason) setStatus("Autopilot paused · " + result.reason, "bad");
   });
 
