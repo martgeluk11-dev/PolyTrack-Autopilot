@@ -73,7 +73,9 @@
     const dt = clamp(Number(state.deltaSeconds || 1 / 60), 1 / 240, 0.1);
     const priorPosition = readVector(previous.position);
     const routePoint = points[nearestIndex];
-    const normal = normalize({ x: routePoint[3] || 0, y: routePoint[4] || 1, z: routePoint[5] || 0 }) || { x: 0, y: 1, z: 0 };
+    let normal = normalize({ x: routePoint[3] || 0, y: routePoint[4] || 1, z: routePoint[5] || 0 }) || { x: 0, y: 1, z: 0 };
+    const carUp = rotateByQuaternion({ x: 0, y: 1, z: 0 }, q);
+    if (normal.x*carUp.x + normal.y*carUp.y + normal.z*carUp.z < 0) normal = { x: -normal.x, y: -normal.y, z: -normal.z };
     const verticalSpeed = priorPosition ? ((position.x-priorPosition.x)*normal.x + (position.y-priorPosition.y)*normal.y + (position.z-priorPosition.z)*normal.z) / dt : 0;
     const surfaceHeight = (position.x-routePoint[0])*normal.x +
       (position.y-routePoint[1])*normal.y + (position.z-routePoint[2])*normal.z;
