@@ -38,58 +38,90 @@
 
   function calculate(state, previous = {}) {
     const position = readVector(state?.position);
-    const target = readVector(state?.next_checkpoint_position || state?.target);
     const q = state?.quaternion;
-    if (!position || !target || !q || ![q.x, q.y, q.z, q.w].every(Number.isFinite)) {
-      return { valid: false, reason: "Car position, orientation or next checkpoint is missing." };
+    if (!position || !q || ![q.x, q.y, q.z, q.w].every(Number.isFinite)) {
+      return { valid: false, reason: "Car position or orientation is missing." };
     }
-    if (![position.x, position.y, position.z, target.x, target.y, target.z].every(Number.isFinite)) {
+    if (![position.x, position.y, position.z].every(Number.isFinite)) {
       return { valid: false, reason: "Telemetry contains invalid coordinates." };
     }
 
+    const route = Array.isArray(state.route) ? state.route : null;
+    if (!route || route.length < 5) {
+      return { valid: false, reason: "A complete 3D racing route has not been generated yet." };
+    }
+
+    const points = route;
+    const from = Number.isInteger(previous.routeIndex) ? Math.max(0, previous.routeIndex - 4) : 0;
+    const to = Number.isInteger(previous.routeIndex)
+      ? Math.min(points.length - 1, previous.routeIndex + 110)
+      : points.length - 1;
+    let nearestIndex = -1, nearestDistance = Infinity;
+    for (let i = from; i <= to; i++) {
+      const p = points[i];
+      const d = Math.hypot(p[0]-position.x, p[1]-position.y, p[2]-position.z);
+      if (d < nearestDistance) { nearestDistance = d; nearestIndex = i; }
+    }
+    if (nearestIndex < 0 || nearestDistance > 35) {
+      return { valid: false, reason: "Car is too far from the planned road surface." };
+    }
+
+    const speed = Number(state.speed_kmh ?? state.speedKmh ?? 0);
+    if (!Number.isFinite(speed) || speed < 0) return { valid: false, reason: "Invalid vehicle speed." };
+    const lookDistance = clamp(speed / 3.6 * 0.55, 8, 28);
+    let targetIndex = nearestIndex, travelled = 0;
+    while (targetIndex < points.length - 1 && travelled < lookDistance) {
+      const a = points[targetIndex], b = points[targetIndex + 1];
+      travelled += Math.hypot(b[0]-a[0], b[1]-a[1], b[2]-a[2]);
+      targetIndex++;
+    }
+    const targetPoint = points[targetIndex];
     const forward = normalize(rotateByQuaternion(FORWARD_LOCAL, q));
     const toTarget = normalize({
-      x: target.x - position.x,
-      y: target.y - position.y,
-      z: target.z - position.z
+      x: targetPoint[0]-position.x,
+      y: targetPoint[1]-position.y,
+      z: targetPoint[2]-position.z
     });
-    if (!forward || !toTarget) return { valid: false, reason: "Cannot calculate target direction." };
+    if (!forward || !toTarget) return { valid: false, reason: "Cannot calculate racing-line direction." };
 
-    // Ignore vertical displacement for steering; pitch is handled by the game.
     const f = normalize({ x: forward.x, y: 0, z: forward.z });
     const t = normalize({ x: toTarget.x, y: 0, z: toTarget.z });
     if (!f || !t) return { valid: false, reason: "No usable horizontal direction." };
+    const dotProduct = clamp(f.x*t.x + f.z*t.z, -1, 1);
+    const crossY = f.x*t.z - f.z*t.x;
+    const angle = Math.atan2(crossY, dotProduct);
+    const dt = Number(state.deltaSeconds || 1/60);
+    const derivative = previous.angle == null ? 0 : (angle-previous.angle)/clamp(dt,1/240,0.1);
+    const steering = clamp(angle*1.8 + derivative*0.025, -1, 1);
 
-    const dot = clamp(f.x * t.x + f.z * t.z, -1, 1);
-    const crossY = f.x * t.z - f.z * t.x;
-    const angle = Math.atan2(crossY, dot);
-    const speed = Number(state.speed_kmh ?? state.speedKmh ?? 0);
-    if (!Number.isFinite(speed) || speed < 0) return { valid: false, reason: "Invalid vehicle speed." };
-
-    const dt = Number(state.deltaSeconds || 1 / 60);
-    const derivative = previous.angle == null ? 0 : (angle - previous.angle) / clamp(dt, 1 / 240, 0.1);
-    const steering = clamp(angle * 1.65 + derivative * 0.035, -1, 1);
-
-    // Conservative checkpoint approach speed. This is an initial baseline,
-    // not a track-trained racing-line optimizer.
-    const distance = length({ x: target.x - position.x, y: target.y - position.y, z: target.z - position.z });
-    const turnSeverity = Math.abs(angle);
-    const cornerSpeed = 175 - turnSeverity * 205;
-    const approachSpeed = Math.sqrt(2 * 7.5 * Math.max(0, distance)) * 3.6;
-    const targetSpeed = clamp(Math.min(cornerSpeed, approachSpeed), 25, 175);
-    const brake = speed > targetSpeed + 7 || (turnSeverity > 1.05 && speed > 55);
-    const throttle = !brake && speed < targetSpeed + 5;
+    // Estimate local curvature from the generated 3D path and cap speed by
+    // lateral grip. Braking is planned ahead using the distance to each cap.
+    let targetSpeed = 230;
+    let distanceAhead = 0;
+    const maxIndex = Math.min(points.length - 2, nearestIndex + 24);
+    for (let i = Math.max(1, nearestIndex); i <= maxIndex; i++) {
+      const a = points[i-1], b = points[i], c = points[i+1];
+      const ab = Math.hypot(b[0]-a[0], b[2]-a[2]);
+      const bc = Math.hypot(c[0]-b[0], c[2]-b[2]);
+      const ac = Math.hypot(c[0]-a[0], c[2]-a[2]);
+      const area2 = Math.abs((b[0]-a[0])*(c[2]-a[2])-(b[2]-a[2])*(c[0]-a[0]));
+      const curvature = ab*bc*ac > 1e-5 ? 2*area2/(ab*bc*ac) : 0;
+      const cornerCap = curvature > 1e-4 ? Math.sqrt(12.0/curvature)*3.6 : 230;
+      const remaining = Math.max(0, distanceAhead);
+      const brakingCap = Math.sqrt(Math.max(0, (cornerCap/3.6)**2 + 2*7.5*remaining))*3.6;
+      targetSpeed = Math.min(targetSpeed, brakingCap);
+      distanceAhead += Math.hypot(points[i+1][0]-points[i][0],points[i+1][1]-points[i][1],points[i+1][2]-points[i][2]);
+    }
+    targetSpeed = clamp(targetSpeed, 35, 230);
+    const brake = speed > targetSpeed + 8;
+    const throttle = !brake && speed < targetSpeed + 4;
 
     return {
-      valid: true,
-      angle,
-      steering,
-      speedKmh: speed,
-      targetSpeedKmh: targetSpeed,
-      distance,
+      valid: true, angle, steering, speedKmh: speed, targetSpeedKmh: targetSpeed,
+      distance: nearestDistance, routeIndex: nearestIndex,
       inputs: {
-        ArrowLeft: steering < -0.13,
-        ArrowRight: steering > 0.13,
+        ArrowLeft: steering < -0.12,
+        ArrowRight: steering > 0.12,
         ArrowUp: throttle,
         ArrowDown: brake
       }
