@@ -111,10 +111,7 @@
   function observeMessage(event) {
     const data = event?.data;
     if (!data) return;
-    if (data.messageType === 0 && Array.isArray(data.trackParts)) {
-      captureTrackGeometry(data);
-      return;
-    }
+    if (Array.isArray(data.trackParts)) captureTrackGeometry(data);
     if (data.messageType !== UPDATE_RESULT || !Array.isArray(data.carStateBuffers)) return;
 
     const states = data.carStateBuffers.map(readState).filter(Boolean);
